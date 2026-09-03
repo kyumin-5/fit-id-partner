@@ -1180,8 +1180,7 @@ export default function Page(){
 
                     <a
   className="fitButton"
-  href="exp://vcpqqeo-anonymous-8081.exp.direct?productCode=FIT-731675"
->
+href="exp://snawtqs-anonymous-8081.exp.direct?productCode=FIT-731675">
   <span className="fitButtonLogo">
     FIT ID
   </span>
