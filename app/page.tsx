@@ -1178,15 +1178,18 @@ export default function Page(){
                       <button>L</button>
                     </div>
 
-                    <button className="fitButton large">
-
-                      <span className="fitButtonLogo">
-                        FIT ID
-                      </span>
-
-                      내 FIT ID로 사이즈 확인
-
-                    </button>
+                    <button
+  className="fitButton"
+  onClick={()=>{
+    window.location.href=
+      'exp://vcpqqeo-anonymous-8081.exp.direct?productCode=FIT-731675';
+  }}
+>
+  <span className="fitButtonLogo">
+    FIT ID
+  </span>
+  내 FIT ID로 사이즈 확인
+</button>
 
                     <div className="recommendationMock">
 
