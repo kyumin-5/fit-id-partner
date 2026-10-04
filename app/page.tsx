@@ -64,8 +64,8 @@ function PartnerApp({authUserId}:{authUserId:string}){
   const [status,setStatus]=useState('');
 
   useEffect(()=>{
-    void loadProducts();
-  },[]);
+    void initPartner();
+  },[authUserId]);
 
   async function initPartner(){
     if(!supabase){
