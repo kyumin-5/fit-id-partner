@@ -2,6 +2,7 @@
 
 import {useEffect,useState} from 'react';
 import {createClient} from '@supabase/supabase-js';
+import PocDashboard from './PocDashboard';
 
 type Size={
   label:string;
@@ -431,34 +432,7 @@ export default function Page(){
 
             </section>
 
-            <section className="metricGrid">
-
-              <MetricCard
-                label="등록 상품"
-                value={String(products.length)}
-                helper="Supabase 실제 데이터"
-                live
-              />
-
-              <MetricCard
-                label="FIT CHECK"
-                value="1,284"
-                helper="DEMO DATA"
-              />
-
-              <MetricCard
-                label="연결 고객"
-                value="436"
-                helper="DEMO DATA"
-              />
-
-              <MetricCard
-                label="착용 피드백"
-                value="318"
-                helper="DEMO DATA"
-              />
-
-            </section>
+            <PocDashboard shopName={shop}/>
 
             <section className="dashboardGrid">
 
