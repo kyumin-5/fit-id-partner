@@ -52,7 +52,7 @@ const supabase =
 
 function PartnerApp({authUserId}:{authUserId:string}){
   const [tab,setTab]=useState<Tab>('dashboard');
-  const [shop,setShop]=useState('MY SHOP');
+  const [shop,setShop]=useState('Partner Workspace');
   const [shopId,setShopId]=useState('');
   const [name,setName]=useState('');
   const [material,setMaterial]=useState('');
@@ -69,36 +69,95 @@ function PartnerApp({authUserId}:{authUserId:string}){
 
   async function initPartner(){
     if(!supabase){
-      setStatus('Supabase environment is not configured.');
-      return;
-    }
-
-    const {data:owned,error}=await supabase
-      .from('shops')
-      .select('id,name')
-      .eq('owner_user_id',authUserId)
-      .limit(1)
-      .maybeSingle();
-
-    if(error){
       setStatus(
-        'Partner shop lookup failed: '+error.message
+        'Supabase environment is not configured.'
       );
       return;
     }
 
-    if(!owned?.id){
+    const db=supabase;
+
+    setStatus(
+      'Partner workspace loading...'
+    );
+
+    async function findOwnedShop(){
+      const {
+        data,
+        error
+      }=await db
+        .from('shops')
+        .select('id,name')
+        .eq('owner_user_id',authUserId)
+        .limit(1)
+        .maybeSingle();
+
+      if(error){
+        throw error;
+      }
+
+      return data as {
+        id:string;
+        name:string;
+      }|null;
+    }
+
+    try{
+      let owned=await findOwnedShop();
+
+      if(!owned?.id){
+        const {
+          data:created,
+          error:createError
+        }=await db
+          .from('shops')
+          .insert({
+            name:'MY SHOP',
+            owner_user_id:authUserId
+          })
+          .select('id,name')
+          .single();
+
+        if(createError){
+          /*
+           * 여러 탭에서 동시에 첫 로그인했을 경우
+           * DB unique index가 중복 생성을 막는다.
+           * 그때는 이미 생성된 자기 shop을 다시 조회한다.
+           */
+          if(createError.code==='23505'){
+            owned=await findOwnedShop();
+          }else{
+            throw createError;
+          }
+        }else{
+          owned=created as {
+            id:string;
+            name:string;
+          };
+        }
+      }
+
+      if(!owned?.id){
+        throw new Error(
+          'Partner shop could not be initialized.'
+        );
+      }
+
+      setShopId(owned.id);
+      setShop(owned.name);
+
+      await loadProducts(owned.id);
+
+    }catch(e:any){
       setShopId('');
       setProducts([]);
-      setStatus(
-        'Partner account created. Shop ownership assignment is required once.'
-      );
-      return;
-    }
+      setShop('Partner Workspace');
 
-    setShopId(owned.id);
-    setShop(owned.name);
-    await loadProducts(owned.id);
+      setStatus(
+        'Partner shop initialization failed: '+
+        (e?.message||String(e))
+      );
+    }
   }
 
   async function loadProducts(targetShopId=shopId){
