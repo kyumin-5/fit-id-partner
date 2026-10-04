@@ -62,6 +62,8 @@ function PartnerApp({authUserId}:{authUserId:string}){
   const [latest,setLatest]=useState<Product|null>(null);
   const [saving,setSaving]=useState(false);
   const [status,setStatus]=useState('');
+  const [editingProductId,setEditingProductId]=
+    useState<string|null>(null);
 
   useEffect(()=>{
     void initPartner();
@@ -210,6 +212,75 @@ function PartnerApp({authUserId}:{authUserId:string}){
     setSizes(a=>a.map((r,j)=>j===i?{...r,[k]:v}:r));
   };
 
+  const resetProductForm=()=>{
+    setEditingProductId(null);
+    setName('');
+    setMaterial('');
+    setStretch('조금');
+    setSizes(seed.map(row=>({...row})));
+  };
+
+  const startEdit=(p:Product)=>{
+    setEditingProductId(p.id);
+    setName(p.name);
+    setMaterial(p.material);
+    setStretch(p.stretch||'조금');
+    setSizes(
+      p.sizes.length
+        ?p.sizes.map(row=>({...row}))
+        :[blank()]
+    );
+    setStatus(
+      '수정 모드 · '+p.code+' · 수정 후 기존 저장 버튼을 눌러주세요.'
+    );
+
+    window.scrollTo({
+      top:0,
+      behavior:'smooth'
+    });
+  };
+
+  async function removeProduct(p:Product){
+    if(!supabase||!shopId)return;
+
+    const confirmed=window.confirm(
+      '"'+p.name+'" 상품을 삭제할까요?\n'+
+      'Product Code '+p.code+'는 더 이상 사용할 수 없습니다.'
+    );
+
+    if(!confirmed)return;
+
+    setSaving(true);
+
+    try{
+      const {error}=await supabase
+        .from('products')
+        .delete()
+        .eq('id',p.id)
+        .eq('shop_id',shopId);
+
+      if(error)throw error;
+
+      if(editingProductId===p.id){
+        resetProductForm();
+      }
+
+      if(latest?.id===p.id){
+        setLatest(null);
+      }
+
+      await loadProducts(shopId);
+      setStatus('✓ 상품 삭제 완료');
+
+    }catch(e:any){
+      setStatus(
+        '상품 삭제 실패: '+(e?.message||String(e))
+      );
+    }finally{
+      setSaving(false);
+    }
+  }
+
   async function add(){
     if(!supabase){
       setStatus('Supabase 환경변수가 없습니다. 상품 저장을 사용할 수 없습니다.');
@@ -286,6 +357,35 @@ function PartnerApp({authUserId}:{authUserId:string}){
 
       const activeShopId=shopId;
 
+      if(editingProductId){
+        const {error:updateError}=await db.rpc(
+          'update_partner_product',
+          {
+            p_product_id:editingProductId,
+            p_name:name.trim(),
+            p_material:material.trim(),
+            p_stretch:stretch,
+            p_sizes:validSizes.map(s=>({
+              size_label:s.label.trim(),
+              waist:num(s.waist),
+              hip:num(s.hip),
+              thigh:num(s.thigh),
+              rise:num(s.rise),
+              length:num(s.length)
+            }))
+          }
+        );
+
+        if(updateError){
+          throw updateError;
+        }
+
+        await loadProducts(activeShopId);
+        resetProductForm();
+        setStatus('✓ 상품 수정 완료');
+        return;
+      }
+
       let code='';
       let productRow:any=null;
 
@@ -355,10 +455,7 @@ function PartnerApp({authUserId}:{authUserId:string}){
       setProducts(old=>[p,...old]);
       setLatest(p);
 
-      setName('');
-      setMaterial('');
-      setStretch('조금');
-      setSizes(seed.map(row=>({...row})));
+      resetProductForm();
 
       setStatus('✓ Supabase 영구 저장 완료');
 
@@ -1006,6 +1103,32 @@ function PartnerApp({authUserId}:{authUserId:string}){
                           </span>
                           FIT CHECK 링크 테스트
                         </a>
+
+                        <div
+                          style={{
+                            display:'grid',
+                            gridTemplateColumns:'1fr 1fr',
+                            gap:8,
+                            marginTop:8
+                          }}
+                        >
+                          <button
+                            className="secondaryBtn"
+                            disabled={saving}
+                            onClick={()=>startEdit(p)}
+                          >
+                            수정
+                          </button>
+
+                          <button
+                            className="secondaryBtn"
+                            disabled={saving}
+                            onClick={()=>void removeProduct(p)}
+                            style={{color:'#b42318'}}
+                          >
+                            삭제
+                          </button>
+                        </div>
 
                       </div>
 
