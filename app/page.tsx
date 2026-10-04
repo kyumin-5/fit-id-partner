@@ -102,6 +102,11 @@ function PartnerApp({authUserId}:{authUserId:string}){
   }
 
   async function loadProducts(targetShopId=shopId){
+    if(!targetShopId){
+      setProducts([]);
+      return;
+    }
+
     if(!supabase){
       setStatus('Supabase 환경변수가 없습니다. .env.local을 확인해주세요.');
       return;
