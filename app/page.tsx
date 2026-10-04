@@ -2,6 +2,7 @@
 
 import {useEffect,useState} from 'react';
 import {createClient} from '@supabase/supabase-js';
+import PartnerAuthGate from './PartnerAuthGate';
 import PocDashboard from './PocDashboard';
 
 type Size={
@@ -49,9 +50,10 @@ const supabase =
     ? createClient(supabaseUrl,supabaseKey)
     : null;
 
-export default function Page(){
+function PartnerApp({authUserId}:{authUserId:string}){
   const [tab,setTab]=useState<Tab>('dashboard');
   const [shop,setShop]=useState('MY SHOP');
+  const [shopId,setShopId]=useState('');
   const [name,setName]=useState('');
   const [material,setMaterial]=useState('');
   const [stretch,setStretch]=useState('조금');
@@ -65,7 +67,41 @@ export default function Page(){
     void loadProducts();
   },[]);
 
-  async function loadProducts(){
+  async function initPartner(){
+    if(!supabase){
+      setStatus('Supabase environment is not configured.');
+      return;
+    }
+
+    const {data:owned,error}=await supabase
+      .from('shops')
+      .select('id,name')
+      .eq('owner_user_id',authUserId)
+      .limit(1)
+      .maybeSingle();
+
+    if(error){
+      setStatus(
+        'Partner shop lookup failed: '+error.message
+      );
+      return;
+    }
+
+    if(!owned?.id){
+      setShopId('');
+      setProducts([]);
+      setStatus(
+        'Partner account created. Shop ownership assignment is required once.'
+      );
+      return;
+    }
+
+    setShopId(owned.id);
+    setShop(owned.name);
+    await loadProducts(owned.id);
+  }
+
+  async function loadProducts(targetShopId=shopId){
     if(!supabase){
       setStatus('Supabase 환경변수가 없습니다. .env.local을 확인해주세요.');
       return;
@@ -78,6 +114,7 @@ export default function Page(){
       .select(
         'id,code,name,material,stretch,product_sizes(size_label,waist,hip,thigh,rise,length)'
       )
+      .eq('shop_id',targetShopId)
       .order('created_at',{ascending:false});
 
     if(error){
@@ -137,40 +174,13 @@ export default function Page(){
     setStatus('Supabase에 저장 중...');
 
     try{
-      let shopId:string;
-
-      const {
-        data:existing,
-        error:shopFindError
-      }=await db
-        .from('shops')
-        .select('id')
-        .eq('name',shop.trim())
-        .limit(1)
-        .maybeSingle();
-
-      if(shopFindError){
-        throw shopFindError;
+      if(!shopId){
+        throw new Error(
+          'No shop is assigned to this Partner account.'
+        );
       }
 
-      if(existing?.id){
-        shopId=existing.id;
-      }else{
-        const {
-          data:newShop,
-          error
-        }=await db
-          .from('shops')
-          .insert({name:shop.trim()})
-          .select('id')
-          .single();
-
-        if(error){
-          throw error;
-        }
-
-        shopId=newShop.id;
-      }
+      const activeShopId=shopId;
 
       let code='';
       let productRow:any=null;
@@ -181,7 +191,7 @@ export default function Page(){
         const {data,error}=await db
           .from('products')
           .insert({
-            shop_id:shopId,
+            shop_id:activeShopId,
             code,
             name:name.trim(),
             material:material.trim(),
@@ -432,7 +442,7 @@ export default function Page(){
 
             </section>
 
-            <PocDashboard shopName={shop}/>
+            <PocDashboard shopId={shopId}/>
 
             <section className="dashboardGrid">
 
@@ -1247,6 +1257,17 @@ href="https://fit-id-consumer-mtvz.vercel.app/?productCode=FIT-731675">
     </div>
   );
 }
+
+export default function Page(){
+  return(
+    <PartnerAuthGate>
+      {authUserId=>(
+        <PartnerApp authUserId={authUserId}/>
+      )}
+    </PartnerAuthGate>
+  );
+}
+
 
 function MetricCard({
   label,
