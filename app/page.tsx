@@ -216,11 +216,6 @@ function PartnerApp({authUserId}:{authUserId:string}){
       return;
     }
 
-    if(!shop.trim()){
-      alert('쇼핑몰명을 입력해주세요.');
-      return;
-    }
-
     if(!name.trim()){
       alert('상품명을 입력해주세요.');
       return;
@@ -229,9 +224,54 @@ function PartnerApp({authUserId}:{authUserId:string}){
     const db=supabase;
     const validSizes=sizes.filter(x=>x.label.trim());
 
+
     if(validSizes.length===0){
       alert('사이즈를 하나 이상 입력해주세요.');
       return;
+    }
+
+    const normalizedLabels=
+      validSizes.map(x=>x.label.trim().toUpperCase());
+
+    if(new Set(normalizedLabels).size!==normalizedLabels.length){
+      alert('같은 사이즈명은 중복해서 등록할 수 없습니다.');
+      return;
+    }
+
+    const measurementFields:Array<{
+      key:'waist'|'hip'|'thigh'|'rise'|'length';
+      label:string;
+    }>=[
+      {key:'waist',label:'허리'},
+      {key:'hip',label:'힙'},
+      {key:'thigh',label:'허벅지'},
+      {key:'rise',label:'밑위'},
+      {key:'length',label:'기장'}
+    ];
+
+    for(const size of validSizes){
+      for(const field of measurementFields){
+        const raw=size[field.key].trim();
+        const value=Number(raw);
+
+        if(!raw || !Number.isFinite(value)){
+          alert(
+            size.label.trim()+' 사이즈의 '+
+            field.label+
+            ' 실측값을 숫자로 입력해주세요.'
+          );
+          return;
+        }
+
+        if(value<=0){
+          alert(
+            size.label.trim()+' 사이즈의 '+
+            field.label+
+            ' 실측값은 0보다 커야 합니다.'
+          );
+          return;
+        }
+      }
     }
 
     setSaving(true);
@@ -314,7 +354,12 @@ function PartnerApp({authUserId}:{authUserId:string}){
 
       setProducts(old=>[p,...old]);
       setLatest(p);
+
       setName('');
+      setMaterial('');
+      setStretch('조금');
+      setSizes(seed.map(row=>({...row})));
+
       setStatus('✓ Supabase 영구 저장 완료');
 
     }catch(e:any){
@@ -671,8 +716,8 @@ function PartnerApp({authUserId}:{authUserId:string}){
 
                   <input
                     value={shop}
-                    onChange={e=>setShop(e.target.value)}
-                    placeholder="MY SHOP"
+                    readOnly
+                    aria-label="현재 Partner 쇼핑몰"
                   />
 
                 </div>
