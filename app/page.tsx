@@ -20,6 +20,7 @@ type Product={
   name:string;
   material:string;
   stretch:string;
+  imagePath:string;
   sizes:Size[];
 };
 
@@ -62,6 +63,12 @@ function PartnerApp({authUserId}:{authUserId:string}){
   const [latest,setLatest]=useState<Product|null>(null);
   const [saving,setSaving]=useState(false);
   const [status,setStatus]=useState('');
+  const [productImageFile,setProductImageFile]=
+    useState<File|null>(null);
+  const [productImagePreview,setProductImagePreview]=
+    useState('');
+  const [existingImagePath,setExistingImagePath]=
+    useState('');
   const [editingProductId,setEditingProductId]=
     useState<string|null>(null);
 
@@ -178,7 +185,7 @@ function PartnerApp({authUserId}:{authUserId:string}){
     const {data,error}=await db
       .from('products')
       .select(
-        'id,code,name,material,stretch,product_sizes(size_label,waist,hip,thigh,rise,length)'
+        'id,code,name,material,stretch,image_path,product_sizes(size_label,waist,hip,thigh,rise,length)'
       )
       .eq('shop_id',targetShopId)
       .order('created_at',{ascending:false});
@@ -194,6 +201,7 @@ function PartnerApp({authUserId}:{authUserId:string}){
       name:p.name,
       material:p.material??'',
       stretch:p.stretch??'',
+      imagePath:p.image_path??'',
       sizes:(p.product_sizes??[]).map((s:any)=>({
         label:s.size_label,
         waist:String(s.waist??''),
@@ -208,6 +216,77 @@ function PartnerApp({authUserId}:{authUserId:string}){
     setStatus('Supabase 연결됨 · 등록 상품을 불러왔습니다.');
   }
 
+  const productImageUrl=(path:string)=>{
+    if(!supabase||!path)return '';
+
+    return supabase.storage
+      .from('product-images')
+      .getPublicUrl(path)
+      .data.publicUrl;
+  };
+
+  const chooseProductImage=(file:File|null)=>{
+    if(!file){
+      setProductImageFile(null);
+      setProductImagePreview(
+        existingImagePath
+          ?productImageUrl(existingImagePath)
+          :''
+      );
+      return;
+    }
+
+    const allowed=[
+      'image/jpeg',
+      'image/png',
+      'image/webp'
+    ];
+
+    if(!allowed.includes(file.type)){
+      alert('JPG, PNG, WEBP 이미지만 등록할 수 있습니다.');
+      return;
+    }
+
+    if(file.size>5*1024*1024){
+      alert('상품 이미지는 5MB 이하만 등록할 수 있습니다.');
+      return;
+    }
+
+    setProductImageFile(file);
+    setProductImagePreview(URL.createObjectURL(file));
+  };
+
+  const uploadProductImage=async(
+    productId:string,
+    file:File
+  )=>{
+    if(!supabase){
+      throw new Error('Supabase unavailable');
+    }
+
+    const ext=
+      file.type==='image/png'
+        ?'png'
+        :file.type==='image/webp'
+          ?'webp'
+          :'jpg';
+
+    const path=
+      authUserId+'/'+
+      productId+'-'+Date.now()+'.'+ext;
+
+    const {error}=await supabase.storage
+      .from('product-images')
+      .upload(path,file,{
+        contentType:file.type,
+        upsert:false
+      });
+
+    if(error)throw error;
+
+    return path;
+  };
+
   const change=(i:number,k:keyof Size,v:string)=>{
     setSizes(a=>a.map((r,j)=>j===i?{...r,[k]:v}:r));
   };
@@ -218,6 +297,9 @@ function PartnerApp({authUserId}:{authUserId:string}){
     setMaterial('');
     setStretch('조금');
     setSizes(seed.map(row=>({...row})));
+    setProductImageFile(null);
+    setProductImagePreview('');
+    setExistingImagePath('');
   };
 
   const startEdit=(p:Product)=>{
@@ -225,6 +307,13 @@ function PartnerApp({authUserId}:{authUserId:string}){
     setName(p.name);
     setMaterial(p.material);
     setStretch(p.stretch||'조금');
+    setProductImageFile(null);
+    setExistingImagePath(p.imagePath||'');
+    setProductImagePreview(
+      p.imagePath
+        ?productImageUrl(p.imagePath)
+        :''
+    );
     setSizes(
       p.sizes.length
         ?p.sizes.map(row=>({...row}))
@@ -261,6 +350,19 @@ function PartnerApp({authUserId}:{authUserId:string}){
 
       if(error)throw error;
 
+      if(p.imagePath){
+        const {error:imageDeleteError}=await supabase.storage
+          .from('product-images')
+          .remove([p.imagePath]);
+
+        if(imageDeleteError){
+          console.warn(
+            'Product image cleanup failed',
+            imageDeleteError.message
+          );
+        }
+      }
+
       if(editingProductId===p.id){
         resetProductForm();
       }
@@ -294,6 +396,11 @@ function PartnerApp({authUserId}:{authUserId:string}){
 
     const db=supabase;
     const validSizes=sizes.filter(x=>x.label.trim());
+
+    if(!productImageFile&&!existingImagePath){
+      alert('가상피팅을 위해 상품 이미지를 등록해주세요.');
+      return;
+    }
 
 
     if(validSizes.length===0){
@@ -358,6 +465,15 @@ function PartnerApp({authUserId}:{authUserId:string}){
       const activeShopId=shopId;
 
       if(editingProductId){
+        let nextImagePath=existingImagePath;
+
+        if(productImageFile){
+          nextImagePath=await uploadProductImage(
+            editingProductId,
+            productImageFile
+          );
+        }
+
         const {error:updateError}=await db.rpc(
           'update_partner_product',
           {
@@ -377,7 +493,37 @@ function PartnerApp({authUserId}:{authUserId:string}){
         );
 
         if(updateError){
+          if(
+            productImageFile&&
+            nextImagePath&&
+            nextImagePath!==existingImagePath
+          ){
+            await db.storage
+              .from('product-images')
+              .remove([nextImagePath]);
+          }
+
           throw updateError;
+        }
+
+        const {error:imageUpdateError}=await db
+          .from('products')
+          .update({image_path:nextImagePath})
+          .eq('id',editingProductId)
+          .eq('shop_id',activeShopId);
+
+        if(imageUpdateError){
+          throw imageUpdateError;
+        }
+
+        if(
+          productImageFile&&
+          existingImagePath&&
+          existingImagePath!==nextImagePath
+        ){
+          await db.storage
+            .from('product-images')
+            .remove([existingImagePath]);
         }
 
         await loadProducts(activeShopId);
@@ -420,6 +566,39 @@ function PartnerApp({authUserId}:{authUserId:string}){
         );
       }
 
+      let newImagePath='';
+
+      try{
+        newImagePath=await uploadProductImage(
+          String(productRow.id),
+          productImageFile!
+        );
+
+        const {error:imageUpdateError}=await db
+          .from('products')
+          .update({image_path:newImagePath})
+          .eq('id',productRow.id)
+          .eq('shop_id',activeShopId);
+
+        if(imageUpdateError){
+          throw imageUpdateError;
+        }
+      }catch(imageError){
+        if(newImagePath){
+          await db.storage
+            .from('product-images')
+            .remove([newImagePath]);
+        }
+
+        await db
+          .from('products')
+          .delete()
+          .eq('id',productRow.id)
+          .eq('shop_id',activeShopId);
+
+        throw imageError;
+      }
+
       const rows=validSizes.map(s=>({
         product_id:productRow.id,
         size_label:s.label.trim(),
@@ -449,6 +628,7 @@ function PartnerApp({authUserId}:{authUserId:string}){
         name:productRow.name,
         material:productRow.material??'',
         stretch:productRow.stretch??'',
+        imagePath:newImagePath,
         sizes:validSizes
       };
 
@@ -833,6 +1013,41 @@ function PartnerApp({authUserId}:{authUserId:string}){
 
                 <div className="field">
 
+                  <label>상품 이미지</label>
+
+                  <input
+                    type="file"
+                    accept="image/jpeg,.jpg,.jpeg,.jfif,image/png,image/webp"
+                    onChange={e=>
+                      chooseProductImage(
+                        e.target.files?.[0]||null
+                      )
+                    }
+                  />
+
+                  <span className="mini">
+                    가상피팅에 사용할 상품 단독 이미지를 등록해주세요. JPG · PNG · WEBP / 최대 5MB
+                  </span>
+
+                  {productImagePreview&&(
+                    <img
+                      src={productImagePreview}
+                      alt="상품 이미지 미리보기"
+                      style={{
+                        width:'100%',
+                        maxWidth:320,
+                        maxHeight:360,
+                        objectFit:'contain',
+                        background:'#f5f5f5',
+                        borderRadius:14,
+                        marginTop:12
+                      }}
+                    />
+                  )}
+
+                </div>
+                <div className="field">
+
                   <label>소재</label>
 
                   <input
@@ -1032,6 +1247,20 @@ function PartnerApp({authUserId}:{authUserId:string}){
                       key={p.id}
                     >
 
+                      {p.imagePath&&(
+                        <img
+                          src={productImageUrl(p.imagePath)}
+                          alt={p.name}
+                          style={{
+                            width:'100%',
+                            height:220,
+                            objectFit:'contain',
+                            background:'#f7f7f7',
+                            borderRadius:14,
+                            marginBottom:14
+                          }}
+                        />
+                      )}
                       <div className="productCardImage">
 
                         <span>
