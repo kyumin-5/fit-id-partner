@@ -875,6 +875,19 @@ export default function Page(){
 
                         </div>
 
+                        <a
+                          className="fitButton"
+                          style={{textDecoration:'none'}}
+                          href={`https://fit-id-consumer-mtvz.vercel.app/?productCode=${encodeURIComponent(p.code)}`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <span className="fitButtonLogo">
+                            FIT ID
+                          </span>
+                          FIT CHECK 링크 테스트
+                        </a>
+
                       </div>
 
                     </article>
@@ -1154,7 +1167,7 @@ export default function Page(){
 
                     <a
   className="fitButton"
-href="exp://snawtqs-anonymous-8081.exp.direct?productCode=FIT-731675">
+href="https://fit-id-consumer-mtvz.vercel.app/?productCode=FIT-731675">
   <span className="fitButtonLogo">
     FIT ID
   </span>
