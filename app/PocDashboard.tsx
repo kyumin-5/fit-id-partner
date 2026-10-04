@@ -1,7 +1,14 @@
 ﻿'use client';
 
-import {useCallback,useEffect,useState} from 'react';
-import {createClient} from '@supabase/supabase-js';
+import {
+  useCallback,
+  useEffect,
+  useState
+} from 'react';
+
+import {
+  createClient
+} from '@supabase/supabase-js';
 
 type Summary={
   link_open:number;
@@ -24,7 +31,9 @@ type DashboardData={
   products:ProductMetric[];
 };
 
-const supabaseUrl=process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseUrl=
+  process.env.NEXT_PUBLIC_SUPABASE_URL;
+
 const supabaseKey=
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -52,7 +61,9 @@ function Metric({
     <div className="metricCard">
       <div className="metricTop">
         <span>{label}</span>
-        <span className="liveBadge">LIVE</span>
+        <span className="liveBadge">
+          LIVE
+        </span>
       </div>
 
       <strong>{value}</strong>
@@ -62,56 +73,50 @@ function Metric({
 }
 
 export default function PocDashboard({
-  shopName
+  shopId
 }:{
-  shopName:string;
+  shopId:string;
 }){
-  const [data,setData]=useState<DashboardData|null>(null);
-  const [loading,setLoading]=useState(false);
-  const [error,setError]=useState('');
+  const [data,setData]=
+    useState<DashboardData|null>(null);
+
+  const [loading,setLoading]=
+    useState(false);
+
+  const [error,setError]=
+    useState('');
 
   const load=useCallback(async()=>{
-    if(!supabase){
-      setError('Supabase environment is not configured.');
+    if(!shopId){
+      setData({
+        summary:{
+          link_open:0,
+          fit_check_view:0,
+          fit_check_save:0
+        },
+        products:[]
+      });
       return;
     }
 
-    const db=supabase;
+    if(!supabase){
+      setError(
+        'Supabase environment is not configured.'
+      );
+      return;
+    }
 
     setLoading(true);
     setError('');
 
     try{
-      const {data:shop,error:shopError}=await db
-        .from('shops')
-        .select('id,name')
-        .eq('name',shopName.trim()||'MY SHOP')
-        .limit(1)
-        .maybeSingle();
-
-      if(shopError){
-        throw shopError;
-      }
-
-      if(!shop?.id){
-        setData({
-          summary:{
-            link_open:0,
-            fit_check_view:0,
-            fit_check_save:0
-          },
-          products:[]
-        });
-        return;
-      }
-
       const {
         data:dashboard,
         error:dashboardError
-      }=await db.rpc(
+      }=await supabase.rpc(
         'get_partner_poc_dashboard',
         {
-          p_shop_id:shop.id
+          p_shop_id:shopId
         }
       );
 
@@ -131,31 +136,24 @@ export default function PocDashboard({
       );
 
     }catch(e:any){
-      setError(e?.message||String(e));
+      setError(
+        e?.message||String(e)
+      );
     }finally{
       setLoading(false);
     }
-  },[shopName]);
+  },[shopId]);
 
   useEffect(()=>{
     void load();
   },[load]);
 
-  const summary=data?.summary??{
-    link_open:0,
-    fit_check_view:0,
-    fit_check_save:0
-  };
-
-  const viewRate=percent(
-    summary.fit_check_view,
-    summary.link_open
-  );
-
-  const saveRate=percent(
-    summary.fit_check_save,
-    summary.fit_check_view
-  );
+  const summary=
+    data?.summary??{
+      link_open:0,
+      fit_check_view:0,
+      fit_check_save:0
+    };
 
   return(
     <>
@@ -169,19 +167,25 @@ export default function PocDashboard({
         <Metric
           label="FIT CHECK VIEW"
           value={String(summary.fit_check_view)}
-          helper={`View conversion ${viewRate}`}
+          helper={`View conversion ${percent(
+            summary.fit_check_view,
+            summary.link_open
+          )}`}
         />
 
         <Metric
           label="RESULT SAVE"
           value={String(summary.fit_check_save)}
-          helper={`Save conversion ${saveRate}`}
+          helper={`Save conversion ${percent(
+            summary.fit_check_save,
+            summary.fit_check_view
+          )}`}
         />
 
         <Metric
           label="POC STATUS"
           value={loading?'SYNC':'LIVE'}
-          helper="Supabase aggregate data"
+          helper="Authorized shop aggregate"
         />
       </section>
 
@@ -202,21 +206,25 @@ export default function PocDashboard({
 
           <button
             className="secondaryBtn"
-            onClick={()=>void load()}
             disabled={loading}
+            onClick={()=>void load()}
           >
-            {loading?'Loading...':'Refresh'}
+            {loading
+              ?'Loading...'
+              :'Refresh'}
           </button>
         </div>
 
         {error?(
           <div className="emptyState">
-            PoC analytics error: {error}
+            Analytics error: {error}
           </div>
+
         ):!data?.products?.length?(
           <div className="emptyState">
-            No registered products.
+            No products for this Partner account.
           </div>
+
         ):(
           <div className="tableWrap">
             <table>
@@ -236,12 +244,10 @@ export default function PocDashboard({
               <tbody>
                 {data.products.map(product=>(
                   <tr key={product.product_id}>
-                    <td
-                      style={{
-                        textAlign:'left',
-                        fontWeight:800
-                      }}
-                    >
+                    <td style={{
+                      textAlign:'left',
+                      fontWeight:800
+                    }}>
                       {product.product_name}
                     </td>
 
