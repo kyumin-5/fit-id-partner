@@ -5,13 +5,23 @@ import {createClient} from '@supabase/supabase-js';
 import PartnerAuthGate from './PartnerAuthGate';
 import PocDashboard from './PocDashboard';
 
+type MajorCategory='TOP'|'BOTTOM'|'OUTER'|'DRESS';
+
+type DimensionKey=
+  |'CHEST_WIDTH'
+  |'SHOULDER_WIDTH'
+  |'SLEEVE_LENGTH'
+  |'BODY_LENGTH'
+  |'HEM_WIDTH'
+  |'WAIST_WIDTH'
+  |'HIP_WIDTH'
+  |'THIGH_WIDTH'
+  |'RISE'
+  |'OUTSEAM_LENGTH';
+
 type Size={
   label:string;
-  waist:string;
-  hip:string;
-  thigh:string;
-  rise:string;
-  length:string;
+  measurements:Partial<Record<DimensionKey,string>>;
 };
 
 type Product={
@@ -20,25 +30,179 @@ type Product={
   name:string;
   material:string;
   stretch:string;
+  majorCategory:MajorCategory;
+  subCategory:string;
   sizes:Size[];
 };
 
 type Tab='dashboard'|'products'|'analytics'|'integration';
 
+const CATEGORY_REGISTRY:Record<
+  MajorCategory,
+  {
+    label:string;
+    dimensions:DimensionKey[];
+    subCategories:Array<[string,string,DimensionKey[]?]>;
+  }
+>={
+  TOP:{
+    label:'상의',
+    dimensions:[
+      'CHEST_WIDTH',
+      'SHOULDER_WIDTH',
+      'SLEEVE_LENGTH',
+      'BODY_LENGTH',
+      'HEM_WIDTH'
+    ],
+    subCategories:[
+      ['TSHIRT','티셔츠'],
+      ['SHIRT','셔츠'],
+      ['BLOUSE','블라우스'],
+      ['KNIT','니트'],
+      ['SWEATSHIRT','스웨트셔츠'],
+      ['HOODIE','후드'],
+      ['SLEEVELESS','민소매',[
+        'CHEST_WIDTH',
+        'SHOULDER_WIDTH',
+        'BODY_LENGTH',
+        'HEM_WIDTH'
+      ]]
+    ]
+  },
+
+  BOTTOM:{
+    label:'하의',
+    dimensions:[
+      'WAIST_WIDTH',
+      'HIP_WIDTH',
+      'THIGH_WIDTH',
+      'RISE',
+      'OUTSEAM_LENGTH',
+      'HEM_WIDTH'
+    ],
+    subCategories:[
+      ['PANTS','바지'],
+      ['SLACKS','슬랙스'],
+      ['DENIM','데님'],
+      ['JOGGER','조거'],
+      ['WIDE_PANTS','와이드 팬츠'],
+      ['SHORTS','반바지'],
+      ['SKIRT','스커트',[
+        'WAIST_WIDTH',
+        'HIP_WIDTH',
+        'OUTSEAM_LENGTH',
+        'HEM_WIDTH'
+      ]],
+      ['LEGGINGS','레깅스']
+    ]
+  },
+
+  OUTER:{
+    label:'아우터',
+    dimensions:[
+      'CHEST_WIDTH',
+      'SHOULDER_WIDTH',
+      'SLEEVE_LENGTH',
+      'BODY_LENGTH',
+      'HEM_WIDTH'
+    ],
+    subCategories:[
+      ['JACKET','재킷'],
+      ['COAT','코트'],
+      ['PADDING','패딩'],
+      ['CARDIGAN','가디건'],
+      ['WINDBREAKER','윈드브레이커'],
+      ['VEST','베스트',[
+        'CHEST_WIDTH',
+        'SHOULDER_WIDTH',
+        'BODY_LENGTH',
+        'HEM_WIDTH'
+      ]]
+    ]
+  },
+
+  DRESS:{
+    label:'원피스',
+    dimensions:[
+      'CHEST_WIDTH',
+      'WAIST_WIDTH',
+      'HIP_WIDTH',
+      'SHOULDER_WIDTH',
+      'SLEEVE_LENGTH',
+      'BODY_LENGTH'
+    ],
+    subCategories:[
+      ['MINI_DRESS','미니 원피스'],
+      ['MIDI_DRESS','미디 원피스'],
+      ['LONG_DRESS','롱 원피스']
+    ]
+  }
+};
+
+const DIMENSION_UI:Record<
+  DimensionKey,
+  {label:string;english:string}
+>={
+  CHEST_WIDTH:{label:'가슴 단면',english:'CHEST'},
+  SHOULDER_WIDTH:{label:'어깨 너비',english:'SHOULDER'},
+  SLEEVE_LENGTH:{label:'소매 길이',english:'SLEEVE'},
+  BODY_LENGTH:{label:'총장',english:'LENGTH'},
+  HEM_WIDTH:{label:'밑단 단면',english:'HEM'},
+  WAIST_WIDTH:{label:'허리 단면',english:'WAIST'},
+  HIP_WIDTH:{label:'힙 단면',english:'HIP'},
+  THIGH_WIDTH:{label:'허벅지 단면',english:'THIGH'},
+  RISE:{label:'밑위',english:'RISE'},
+  OUTSEAM_LENGTH:{label:'총장',english:'LENGTH'}
+};
+
+const getDimensions=(
+  major:MajorCategory,
+  sub:string
+)=>{
+  const definition=CATEGORY_REGISTRY[major];
+  const found=definition.subCategories.find(
+    item=>item[0]===sub
+  );
+
+  return found?.[2]||definition.dimensions;
+};
+
+const makeSize=(
+  label:string,
+  values:Partial<Record<DimensionKey,string>>={}
+):Size=>({
+  label,
+  measurements:{...values}
+});
+
 const seed:Size[]=[
-  {label:'S',waist:'35',hip:'47',thigh:'28',rise:'29',length:'100'},
-  {label:'M',waist:'37',hip:'49',thigh:'29',rise:'30',length:'102'},
-  {label:'L',waist:'39',hip:'51',thigh:'30',rise:'31',length:'104'}
+  makeSize('S',{
+    WAIST_WIDTH:'35',
+    HIP_WIDTH:'47',
+    THIGH_WIDTH:'28',
+    RISE:'29',
+    OUTSEAM_LENGTH:'100',
+    HEM_WIDTH:'20'
+  }),
+  makeSize('M',{
+    WAIST_WIDTH:'37',
+    HIP_WIDTH:'49',
+    THIGH_WIDTH:'29',
+    RISE:'30',
+    OUTSEAM_LENGTH:'102',
+    HEM_WIDTH:'21'
+  }),
+  makeSize('L',{
+    WAIST_WIDTH:'39',
+    HIP_WIDTH:'51',
+    THIGH_WIDTH:'30',
+    RISE:'31',
+    OUTSEAM_LENGTH:'104',
+    HEM_WIDTH:'22'
+  })
 ];
 
-const blank=():Size=>({
-  label:'',
-  waist:'',
-  hip:'',
-  thigh:'',
-  rise:'',
-  length:''
-});
+const blank=():Size=>makeSize('');
 
 const supabaseUrl=process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey=
@@ -57,6 +221,8 @@ function PartnerApp({authUserId}:{authUserId:string}){
   const [name,setName]=useState('');
   const [material,setMaterial]=useState('');
   const [stretch,setStretch]=useState('조금');
+  const [majorCategory,setMajorCategory]=useState<MajorCategory>('BOTTOM');
+  const [subCategory,setSubCategory]=useState('PANTS');
   const [sizes,setSizes]=useState<Size[]>(seed);
   const [products,setProducts]=useState<Product[]>([]);
   const [latest,setLatest]=useState<Product|null>(null);
@@ -178,7 +344,7 @@ function PartnerApp({authUserId}:{authUserId:string}){
     const {data,error}=await db
       .from('products')
       .select(
-        'id,code,name,material,stretch,product_sizes(size_label,waist,hip,thigh,rise,length)'
+        'id,code,name,material,stretch,major_category,sub_category,product_sizes(size_label,waist,hip,thigh,rise,length,measurements,measurement_semantics,measurement_schema_version)'
       )
       .eq('shop_id',targetShopId)
       .order('created_at',{ascending:false});
@@ -188,28 +354,100 @@ function PartnerApp({authUserId}:{authUserId:string}){
       return;
     }
 
-    const mapped:Product[]=(data??[]).map((p:any)=>({
-      id:p.id,
-      code:p.code,
-      name:p.name,
-      material:p.material??'',
-      stretch:p.stretch??'',
-      sizes:(p.product_sizes??[]).map((s:any)=>({
-        label:s.size_label,
-        waist:String(s.waist??''),
-        hip:String(s.hip??''),
-        thigh:String(s.thigh??''),
-        rise:String(s.rise??''),
-        length:String(s.length??'')
-      }))
-    }));
+    const mapped:Product[]=(data??[]).map((p:any)=>{
+      const major:MajorCategory=
+        ['TOP','BOTTOM','OUTER','DRESS'].includes(
+          String(p.major_category||'')
+        )
+          ?p.major_category
+          :'BOTTOM';
+
+      const sub=
+        String(
+          p.sub_category||
+          (major==='BOTTOM'?'PANTS':'')
+        ).trim().toUpperCase();
+
+      return {
+        id:p.id,
+        code:p.code,
+        name:p.name,
+        material:p.material??'',
+        stretch:p.stretch??'',
+        majorCategory:major,
+        subCategory:sub,
+        sizes:(p.product_sizes??[]).map((row:any)=>{
+          const raw=
+            row?.measurements &&
+            typeof row.measurements==='object'
+              ?row.measurements
+              :{};
+
+          const measurements:Partial<Record<DimensionKey,string>>={};
+
+          getDimensions(major,sub).forEach(key=>{
+            const legacy=
+              key==='WAIST_WIDTH'
+                ?row.waist
+                :key==='HIP_WIDTH'
+                  ?row.hip
+                  :key==='THIGH_WIDTH'
+                    ?row.thigh
+                    :key==='RISE'
+                      ?row.rise
+                      :key==='OUTSEAM_LENGTH'
+                        ?row.length
+                        :null;
+
+            const value=raw[key]??legacy;
+
+            if(value!=null&&String(value)!==''){
+              measurements[key]=String(value);
+            }
+          });
+
+          return {
+            label:String(row.size_label||''),
+            measurements
+          };
+        })
+      };
+    });
 
     setProducts(mapped);
     setStatus('Supabase 연결됨 · 등록 상품을 불러왔습니다.');
   }
 
-  const change=(i:number,k:keyof Size,v:string)=>{
-    setSizes(a=>a.map((r,j)=>j===i?{...r,[k]:v}:r));
+  const changeLabel=(i:number,v:string)=>{
+    setSizes(current=>
+      current.map(
+        (row,index)=>
+          index===i
+            ?{...row,label:v}
+            :row
+      )
+    );
+  };
+
+  const changeMeasurement=(
+    i:number,
+    key:DimensionKey,
+    value:string
+  )=>{
+    setSizes(current=>
+      current.map(
+        (row,index)=>
+          index===i
+            ?{
+                ...row,
+                measurements:{
+                  ...row.measurements,
+                  [key]:value
+                }
+              }
+            :row
+      )
+    );
   };
 
   const resetProductForm=()=>{
@@ -217,7 +455,41 @@ function PartnerApp({authUserId}:{authUserId:string}){
     setName('');
     setMaterial('');
     setStretch('조금');
-    setSizes(seed.map(row=>({...row})));
+    setMajorCategory('BOTTOM');
+    setSubCategory('PANTS');
+    setSizes(seed.map(row=>({
+      label:row.label,
+      measurements:{...row.measurements}
+    })));
+  };
+
+  const changeMajorCategory=(major:MajorCategory)=>{
+    const firstSub=
+      CATEGORY_REGISTRY[
+        major
+      ].subCategories[0]?.[0]||
+      '';
+
+    setMajorCategory(major);
+    setSubCategory(firstSub);
+
+    setSizes(current=>
+      current.map(row=>({
+        label:row.label,
+        measurements:{}
+      }))
+    );
+  };
+
+  const changeSubCategory=(sub:string)=>{
+    setSubCategory(sub);
+
+    setSizes(current=>
+      current.map(row=>({
+        label:row.label,
+        measurements:{}
+      }))
+    );
   };
 
   const startEdit=(p:Product)=>{
@@ -225,9 +497,14 @@ function PartnerApp({authUserId}:{authUserId:string}){
     setName(p.name);
     setMaterial(p.material);
     setStretch(p.stretch||'조금');
+    setMajorCategory(p.majorCategory);
+    setSubCategory(p.subCategory);
     setSizes(
       p.sizes.length
-        ?p.sizes.map(row=>({...row}))
+        ?p.sizes.map(row=>({
+            label:row.label,
+            measurements:{...row.measurements}
+          }))
         :[blank()]
     );
     setStatus(
@@ -309,26 +586,32 @@ function PartnerApp({authUserId}:{authUserId:string}){
       return;
     }
 
-    const measurementFields:Array<{
-      key:'waist'|'hip'|'thigh'|'rise'|'length';
-      label:string;
-    }>=[
-      {key:'waist',label:'허리'},
-      {key:'hip',label:'힙'},
-      {key:'thigh',label:'허벅지'},
-      {key:'rise',label:'밑위'},
-      {key:'length',label:'기장'}
-    ];
+    const dimensions=
+      getDimensions(
+        majorCategory,
+        subCategory
+      );
 
     for(const size of validSizes){
-      for(const field of measurementFields){
-        const raw=size[field.key].trim();
-        const value=Number(raw);
+      for(const dimension of dimensions){
+        const raw=
+          String(
+            size.measurements[
+              dimension
+            ]||
+            ''
+          ).trim();
 
-        if(!raw || !Number.isFinite(value)){
+        const value=
+          Number(raw);
+
+        if(
+          !raw||
+          !Number.isFinite(value)
+        ){
           alert(
             size.label.trim()+' 사이즈의 '+
-            field.label+
+            DIMENSION_UI[dimension].label+
             ' 실측값을 숫자로 입력해주세요.'
           );
           return;
@@ -337,13 +620,33 @@ function PartnerApp({authUserId}:{authUserId:string}){
         if(value<=0){
           alert(
             size.label.trim()+' 사이즈의 '+
-            field.label+
+            DIMENSION_UI[dimension].label+
             ' 실측값은 0보다 커야 합니다.'
           );
           return;
         }
       }
     }
+
+    const rpcSizes=
+      validSizes.map(size=>({
+        size_label:
+          size.label.trim(),
+
+        measurements:
+          Object.fromEntries(
+            dimensions.map(
+              dimension=>[
+                dimension,
+                Number(
+                  size.measurements[
+                    dimension
+                  ]
+                )
+              ]
+            )
+          )
+      }));
 
     setSaving(true);
     setStatus('Supabase에 저장 중...');
@@ -359,20 +662,15 @@ function PartnerApp({authUserId}:{authUserId:string}){
 
       if(editingProductId){
         const {error:updateError}=await db.rpc(
-          'update_partner_product',
+          'update_partner_product_v2',
           {
             p_product_id:editingProductId,
             p_name:name.trim(),
             p_material:material.trim(),
             p_stretch:stretch,
-            p_sizes:validSizes.map(s=>({
-              size_label:s.label.trim(),
-              waist:num(s.waist),
-              hip:num(s.hip),
-              thigh:num(s.thigh),
-              rise:num(s.rise),
-              length:num(s.length)
-            }))
+            p_major_category:majorCategory,
+            p_sub_category:subCategory,
+            p_sizes:rpcSizes
           }
         );
 
@@ -387,25 +685,30 @@ function PartnerApp({authUserId}:{authUserId:string}){
       }
 
       let code='';
-      let productRow:any=null;
+      let productId='';
 
       for(let attempt=0;attempt<5;attempt++){
         code='FIT-'+Math.floor(100000+Math.random()*900000);
 
-        const {data,error}=await db
-          .from('products')
-          .insert({
-            shop_id:activeShopId,
-            code,
-            name:name.trim(),
-            material:material.trim(),
-            stretch
-          })
-          .select('id,code,name,material,stretch')
-          .single();
+        const {
+          data,
+          error
+        }=await db.rpc(
+          'create_partner_product_v2',
+          {
+            p_shop_id:activeShopId,
+            p_code:code,
+            p_name:name.trim(),
+            p_material:material.trim(),
+            p_stretch:stretch,
+            p_major_category:majorCategory,
+            p_sub_category:subCategory,
+            p_sizes:rpcSizes
+          }
+        );
 
         if(!error){
-          productRow=data;
+          productId=String(data||'');
           break;
         }
 
@@ -414,42 +717,24 @@ function PartnerApp({authUserId}:{authUserId:string}){
         }
       }
 
-      if(!productRow){
+      if(!productId){
         throw new Error(
           'Product Code 생성에 실패했습니다. 다시 시도해주세요.'
         );
       }
 
-      const rows=validSizes.map(s=>({
-        product_id:productRow.id,
-        size_label:s.label.trim(),
-        waist:num(s.waist),
-        hip:num(s.hip),
-        thigh:num(s.thigh),
-        rise:num(s.rise),
-        length:num(s.length)
-      }));
-
-      const {error:sizeError}=await db
-        .from('product_sizes')
-        .insert(rows);
-
-      if(sizeError){
-        await db
-          .from('products')
-          .delete()
-          .eq('id',productRow.id);
-
-        throw sizeError;
-      }
-
       const p:Product={
-        id:productRow.id,
-        code:productRow.code,
-        name:productRow.name,
-        material:productRow.material??'',
-        stretch:productRow.stretch??'',
-        sizes:validSizes
+        id:productId,
+        code,
+        name:name.trim(),
+        material:material.trim(),
+        stretch,
+        majorCategory,
+        subCategory,
+        sizes:validSizes.map(row=>({
+          label:row.label,
+          measurements:{...row.measurements}
+        }))
       };
 
       setProducts(old=>[p,...old]);
@@ -696,6 +981,23 @@ function PartnerApp({authUserId}:{authUserId:string}){
                           </strong>
 
                           <span>
+                            {
+                              CATEGORY_REGISTRY[
+                                p.majorCategory
+                              ].label
+                            }
+                            {' · '}
+                            {
+                              CATEGORY_REGISTRY[
+                                p.majorCategory
+                              ].subCategories.find(
+                                item=>
+                                  item[0]===
+                                  p.subCategory
+                              )?.[1]||
+                              p.subCategory
+                            }
+                            {' · '}
                             {p.material || '소재 미입력'}
                             {' · '}
                             신축성 {p.stretch}
@@ -833,6 +1135,68 @@ function PartnerApp({authUserId}:{authUserId:string}){
 
                 <div className="field">
 
+                  <label>대분류</label>
+
+                  <select
+                    value={majorCategory}
+                    onChange={e=>
+                      changeMajorCategory(
+                        e.target.value as MajorCategory
+                      )
+                    }
+                  >
+                    {(Object.keys(
+                      CATEGORY_REGISTRY
+                    ) as MajorCategory[]).map(
+                      major=>(
+                        <option
+                          key={major}
+                          value={major}
+                        >
+                          {
+                            CATEGORY_REGISTRY[
+                              major
+                            ].label
+                          }
+                        </option>
+                      )
+                    )}
+                  </select>
+
+                </div>
+
+                <div className="field">
+
+                  <label>세부 카테고리</label>
+
+                  <select
+                    value={subCategory}
+                    onChange={e=>
+                      changeSubCategory(
+                        e.target.value
+                      )
+                    }
+                  >
+                    {
+                      CATEGORY_REGISTRY[
+                        majorCategory
+                      ].subCategories.map(
+                        option=>(
+                          <option
+                            key={option[0]}
+                            value={option[0]}
+                          >
+                            {option[1]}
+                          </option>
+                        )
+                      )
+                    }
+                  </select>
+
+                </div>
+
+                <div className="field">
+
                   <label>소재</label>
 
                   <input
@@ -865,7 +1229,20 @@ function PartnerApp({authUserId}:{authUserId:string}){
                   </span>
 
                   <p>
-                    waist · hip · thigh · rise · length · stretch
+                    {
+                      getDimensions(
+                        majorCategory,
+                        subCategory
+                      )
+                        .map(
+                          key=>
+                            DIMENSION_UI[
+                              key
+                            ].english
+                        )
+                        .join(' · ')
+                    }
+                    {' · STRETCH'}
                   </p>
 
                 </div>
@@ -899,40 +1276,71 @@ function PartnerApp({authUserId}:{authUserId:string}){
                     <thead>
                       <tr>
                         <th>SIZE</th>
-                        <th>허리</th>
-                        <th>힙</th>
-                        <th>허벅지</th>
-                        <th>밑위</th>
-                        <th>총장</th>
+
+                        {
+                          getDimensions(
+                            majorCategory,
+                            subCategory
+                          ).map(
+                            dimension=>(
+                              <th key={dimension}>
+                                {
+                                  DIMENSION_UI[
+                                    dimension
+                                  ].label
+                                }
+                              </th>
+                            )
+                          )
+                        }
                       </tr>
                     </thead>
 
                     <tbody>
 
-                      {sizes.map((r,i)=>(
+                      {sizes.map((row,i)=>(
                         <tr key={i}>
 
-                          {(
-                            [
-                              'label',
-                              'waist',
-                              'hip',
-                              'thigh',
-                              'rise',
-                              'length'
-                            ] as Array<keyof Size>
-                          ).map(k=>(
-                            <td key={k}>
+                          <td>
+                            <input
+                              value={row.label}
+                              onChange={e=>
+                                changeLabel(
+                                  i,
+                                  e.target.value
+                                )
+                              }
+                            />
+                          </td>
 
-                              <input
-                                value={r[k]}
-                                onChange={e=>
-                                  change(i,k,e.target.value)
-                                }
-                              />
+                          {
+                            getDimensions(
+                              majorCategory,
+                              subCategory
+                            ).map(
+                              dimension=>(
+                                <td key={dimension}>
 
-                            </td>
-                          ))}
+                                  <input
+                                    value={
+                                      row.measurements[
+                                        dimension
+                                      ]||
+                                      ''
+                                    }
+                                    onChange={e=>
+                                      changeMeasurement(
+                                        i,
+                                        dimension,
+                                        e.target.value
+                                      )
+                                    }
+                                  />
+
+                                </td>
+                              )
+                            )
+                          }
 
                         </tr>
                       ))}
@@ -1064,6 +1472,23 @@ function PartnerApp({authUserId}:{authUserId:string}){
                         </div>
 
                         <p>
+                          {
+                            CATEGORY_REGISTRY[
+                              p.majorCategory
+                            ].label
+                          }
+                          {' · '}
+                          {
+                            CATEGORY_REGISTRY[
+                              p.majorCategory
+                            ].subCategories.find(
+                              item=>
+                                item[0]===
+                                p.subCategory
+                            )?.[1]||
+                            p.subCategory
+                          }
+                          {' · '}
                           {p.material || '소재 미입력'}
                           {' · '}
                           신축성 {p.stretch}
