@@ -6,9 +6,10 @@ type Props={
   db:any;authUserId:string;shopId:string;
   productId:string;productName:string;imagePath:string;
   onUploaded:()=>Promise<void>;
+  compact?:boolean;
 };
 export default function PartnerProductPhoto({
-  db,authUserId,shopId,productId,productName,imagePath,onUploaded
+  db,authUserId,shopId,productId,productName,imagePath,onUploaded,compact=false
 }:Props){
   const [file,setFile]=useState<File|null>(null);
   const [preview,setPreview]=useState('');
@@ -21,7 +22,7 @@ export default function PartnerProductPhoto({
     return ()=>URL.revokeObjectURL(objectUrl);
   },[file]);
   const currentUrl=publicPartnerImageUrl(db,imagePath);
-  const visible=preview||currentUrl;
+  const visible=preview||(!compact?currentUrl:'');
   async function save(){
     if(!file||busy||!db)return;
     setBusy(true);setMessage('');
@@ -40,7 +41,7 @@ export default function PartnerProductPhoto({
   return <div style={{padding:'12px 0',display:'grid',gap:10}}>
     {visible?<img src={visible} alt={productName+' 상품 대표사진'}
       style={{display:'block',width:'100%',maxHeight:220,objectFit:'contain',borderRadius:10,background:'#eef4ef'}}/>
-      :<div style={{padding:16,textAlign:'center',border:'1px dashed #b6c9ba',borderRadius:10,
+      :compact?null:<div style={{padding:16,textAlign:'center',border:'1px dashed #b6c9ba',borderRadius:10,
         color:'#66766d',fontSize:12}}>등록된 상품 사진이 없습니다.</div>}
     <label style={{fontSize:12,fontWeight:700,color:'#224b34'}}>
       {currentUrl?'상품 사진 교체':'상품 사진 등록'}
