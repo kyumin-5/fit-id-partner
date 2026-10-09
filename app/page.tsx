@@ -5,6 +5,9 @@ import {createClient} from '@supabase/supabase-js';
 import PartnerAuthGate from './PartnerAuthGate';
 import PocDashboard from './PocDashboard';
 import PartnerCatalogImport from './components/PartnerCatalogImport';
+import PartnerSizeChartReader from './components/PartnerSizeChartReader';
+import PartnerProductPhoto from './components/PartnerProductPhoto';
+import {inspectProductImage,publicPartnerImageUrl,uploadPartnerProductImage} from './lib/productImage';
 
 type MajorCategory='TOP'|'BOTTOM'|'OUTER'|'DRESS';
 
@@ -36,6 +39,7 @@ type Product={
   sizes:Size[];
   merchantProductId:string;
   catalogStatus:'READY'|'DRAFT';
+  imagePath:string;
 };
 
 type Tab='dashboard'|'products'|'analytics'|'integration';
@@ -230,6 +234,17 @@ function PartnerApp({authUserId}:{authUserId:string}){
   const [products,setProducts]=useState<Product[]>([]);
   const [latest,setLatest]=useState<Product|null>(null);
   const [saving,setSaving]=useState(false);
+  const [pendingProductPhoto,setPendingProductPhoto]=useState<File|null>(null);
+  const [productPhotoPreview,setProductPhotoPreview]=useState('');
+  useEffect(()=>{
+    if(!pendingProductPhoto){
+      setProductPhotoPreview('');
+      return;
+    }
+    const url=URL.createObjectURL(pendingProductPhoto);
+    setProductPhotoPreview(url);
+    return ()=>URL.revokeObjectURL(url);
+  },[pendingProductPhoto]);
   const [status,setStatus]=useState('');
   const [editingProductId,setEditingProductId]=
     useState<string|null>(null);
@@ -360,7 +375,7 @@ function PartnerApp({authUserId}:{authUserId:string}){
     const {data,error}=await db
       .from('products')
       .select(
-        'id,code,name,material,stretch,major_category,sub_category,merchant_product_id,catalog_status,product_sizes(size_label,waist,hip,thigh,rise,length,measurements,measurement_semantics,measurement_schema_version)'
+        'id,code,name,material,stretch,major_category,sub_category,merchant_product_id,catalog_status,image_path,product_sizes(size_label,waist,hip,thigh,rise,length,measurements,measurement_semantics,measurement_schema_version)'
       )
       .eq('shop_id',targetShopId)
       .order('created_at',{ascending:false});
@@ -392,6 +407,7 @@ function PartnerApp({authUserId}:{authUserId:string}){
         stretch:p.stretch??'',
         catalogStatus:p.catalog_status==='DRAFT'?'DRAFT':'READY',
         merchantProductId:p.merchant_product_id??'',
+        imagePath:p.image_path??'',
         majorCategory:major,
         subCategory:sub,
         sizes:(p.product_sizes??[]).map((row:any)=>{
@@ -469,6 +485,7 @@ function PartnerApp({authUserId}:{authUserId:string}){
   };
 
   const resetProductForm=()=>{
+    setPendingProductPhoto(null);
     setEditingProductId(null);
     setName('');
     setMaterial('');
@@ -511,6 +528,7 @@ function PartnerApp({authUserId}:{authUserId:string}){
   };
 
   const startEdit=(p:Product)=>{
+    setPendingProductPhoto(null);
     setEditingProductId(p.id);
     setName(p.name);
     setMaterial(p.material);
@@ -709,9 +727,21 @@ function PartnerApp({authUserId}:{authUserId:string}){
           }
         }
 
+        let imageNote='';
+        if(pendingProductPhoto){
+          try{
+            await uploadPartnerProductImage({
+              db,shopId:activeShopId,authUserId,
+              productId:editingProductId,file:pendingProductPhoto
+            });
+            imageNote=' · 사진 저장 완료';
+          }catch(photoError){
+            imageNote=' · 사진 저장 실패: '+(photoError instanceof Error?photoError.message:String(photoError));
+          }
+        }
         await loadProducts(activeShopId);
         resetProductForm();
-        setStatus('✓ 상품 수정 완료');
+        setStatus('✓ 상품 수정 완료'+imageNote);
         return;
       }
 
@@ -754,9 +784,24 @@ function PartnerApp({authUserId}:{authUserId:string}){
         );
       }
 
+      let newImagePath='';
+      let photoNote='';
+      if(pendingProductPhoto){
+        try{
+          const image=await uploadPartnerProductImage({
+            db,shopId:activeShopId,authUserId,productId,file:pendingProductPhoto
+          });
+          newImagePath=image.imagePath;
+          photoNote=' · 사진 저장 완료';
+        }catch(photoError){
+          photoNote=' · 사진 저장 실패: '+(photoError instanceof Error?photoError.message:String(photoError));
+        }
+      }
+
       const p:Product={
         id:productId,
         code,
+        imagePath:newImagePath,
         catalogStatus:'READY',
         merchantProductId:'',
         name:name.trim(),
@@ -775,7 +820,7 @@ function PartnerApp({authUserId}:{authUserId:string}){
 
       resetProductForm();
 
-      setStatus('✓ Supabase 영구 저장 완료');
+      setStatus('✓ Supabase 영구 저장 완료'+photoNote);
 
     }catch(e:any){
       setStatus(
@@ -1264,6 +1309,43 @@ function PartnerApp({authUserId}:{authUserId:string}){
 
                 </div>
 
+                <div className="field" style={{padding:12,border:'1px solid #dce9df',borderRadius:12,background:'#f5faf6'}}>
+                  <label htmlFor="partner-product-photo">상품 대표사진 (가상피팅용)</label>
+                  <p style={{fontSize:12,color:'#566b5c',margin:'0 0 9px'}}>
+                    정면에서 옷 전체가 보이는 사진을 선택하세요. 상품 저장 시 사진도 자동 등록됩니다.
+                  </p>
+                  <input
+                    id="partner-product-photo"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    disabled={saving}
+                    onChange={async e=>{
+                      const selected=e.currentTarget.files?.[0]||null;
+                      setPendingProductPhoto(null);
+                      if(!selected)return;
+                      try{
+                        await inspectProductImage(selected);
+                        setPendingProductPhoto(selected);
+                      }catch(err){
+                        setStatus('상품 사진 오류: '+(err instanceof Error?err.message:String(err)));
+                      }
+                    }}
+                  />
+                  {productPhotoPreview&&(
+                    <img src={productPhotoPreview} alt="새 상품 사진 미리보기"
+                      style={{maxWidth:'100%',maxHeight:210,display:'block',
+                        marginTop:9,borderRadius:9,objectFit:'contain'}} />
+                  )}
+                  {editingProductId&&products.find(p=>p.id===editingProductId)?.imagePath&&!pendingProductPhoto&&(
+                    <img
+                      src={publicPartnerImageUrl(supabase,products.find(p=>p.id===editingProductId)?.imagePath)}
+                      alt="현재 등록된 상품 사진"
+                      style={{maxWidth:'100%',maxHeight:210,display:'block',
+                        marginTop:9,borderRadius:9,objectFit:'contain'}} />
+                  )}
+                  <small style={{fontSize:11,color:'#687c6e'}}>JPG·PNG·WebP · 5MB 이하 · 상품 사진은 공개 이미지로 저장됩니다.</small>
+                </div>
+
                 <div className="standardBox">
 
                   <span>
@@ -1310,6 +1392,24 @@ function PartnerApp({authUserId}:{authUserId:string}){
                   </button>
 
                 </div>
+
+                <PartnerSizeChartReader
+                  db={supabase}
+                  shopId={shopId}
+                  majorCategory={majorCategory}
+                  subCategory={subCategory}
+                  onApply={recognized=>{
+                    setSizes(previous=>{
+                      const prevByLabel=new Map(previous.map(item=>[item.label.trim().toUpperCase(),item]));
+                      return recognized.map(item=>{
+                        const existing=prevByLabel.get(item.label.trim().toUpperCase());
+                        return {label:item.label,
+                          measurements:{...(existing?.measurements||{}),...item.measurements}};
+                      });
+                    });
+                    setStatus('AI 사이즈표 인식 결과가 입력칸에 반영되었습니다. 숫자를 확인하고 상품 저장을 눌러주세요.');
+                  }}
+                />
 
                 <div className="tableWrap">
 
@@ -1482,16 +1582,20 @@ function PartnerApp({authUserId}:{authUserId:string}){
                       key={p.id}
                     >
 
-                      <div className="productCardImage">
-
-                        <span>
-                          FIT DATA
-                        </span>
-
-                        <strong>
-                          {String(index+1).padStart(2,'0')}
-                        </strong>
-
+                      <div className="productCardImage" style={{overflow:'hidden'}}>
+                        {p.imagePath?(
+                          <img
+                            src={publicPartnerImageUrl(supabase,p.imagePath)}
+                            alt={p.name+' 대표 상품 사진'}
+                            style={{display:'block',width:'100%',height:'100%',
+                              minHeight:150,objectFit:'contain',background:'#f4f8f5'}}
+                          />
+                        ):(
+                          <>
+                            <span>상품 사진 미등록</span>
+                            <strong>{String(index+1).padStart(2,'0')}</strong>
+                          </>
+                        )}
                       </div>
 
                       <div className="productCardBody">
@@ -1508,7 +1612,7 @@ function PartnerApp({authUserId}:{authUserId:string}){
                           </div>
 
                           <span className="statusPill">
-                            ACTIVE
+                            {p.catalogStatus==='DRAFT'?'초안 · 실측 필요':'READY'}
                           </span>
 
                         </div>
@@ -1558,18 +1662,31 @@ function PartnerApp({authUserId}:{authUserId:string}){
 
                         </div>
 
-                        <a
-                          className="fitButton"
-                          style={{textDecoration:'none'}}
-                          href={`https://fit-id-consumer-mtvz.vercel.app/?productCode=${encodeURIComponent(p.code)}`}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          <span className="fitButtonLogo">
-                            FIT ID
-                          </span>
-                          FIT CHECK 링크 테스트
-                        </a>
+                        {p.catalogStatus==='READY'&&p.sizes.length>0?(
+                          <a
+                            className="fitButton"
+                            style={{textDecoration:'none'}}
+                            href={`https://fit-id-consumer-mtvz.vercel.app/?productCode=${encodeURIComponent(p.code)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            <span className="fitButtonLogo">FIT ID</span>
+                            FIT CHECK 링크 테스트
+                          </a>
+                        ):(
+                          <p style={{fontSize:12,color:'#9d7217'}}>실측 입력 전에는 FIT CHECK를 사용할 수 없습니다.</p>
+                        )}
+
+                        <PartnerProductPhoto
+                          db={supabase}
+                          authUserId={authUserId}
+                          shopId={shopId}
+                          productId={p.id}
+                          productName={p.name}
+                          imagePath={p.imagePath}
+                          compact
+                          onUploaded={()=>loadProducts(shopId)}
+                        />
 
                         <div
                           style={{
