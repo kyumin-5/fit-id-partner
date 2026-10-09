@@ -696,6 +696,19 @@ function PartnerApp({authUserId}:{authUserId:string}){
           throw updateError;
         }
 
+        // A manually completed imported draft may be used for FIT CHECK only
+        // after its persisted size measurements have been validated on server.
+        const current=products.find(item=>item.id===editingProductId);
+        if(current?.catalogStatus==='DRAFT'){
+          const {data:finalized,error:finalizeError}=await db.rpc(
+            'partner_finalize_catalog_draft_v1',
+            {p_product_id:editingProductId}
+          );
+          if(finalizeError||!finalized){
+            throw finalizeError||new Error('실측 검증이 완료되지 않아 상품이 초안 상태로 유지됩니다.');
+          }
+        }
+
         await loadProducts(activeShopId);
         resetProductForm();
         setStatus('✓ 상품 수정 완료');
