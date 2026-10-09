@@ -4,6 +4,7 @@ import {useEffect,useState} from 'react';
 import {createClient} from '@supabase/supabase-js';
 import PartnerAuthGate from './PartnerAuthGate';
 import PocDashboard from './PocDashboard';
+import PartnerCatalogImport from './components/PartnerCatalogImport';
 
 type MajorCategory='TOP'|'BOTTOM'|'OUTER'|'DRESS';
 
@@ -33,6 +34,8 @@ type Product={
   majorCategory:MajorCategory;
   subCategory:string;
   sizes:Size[];
+  merchantProductId:string;
+  catalogStatus:'READY'|'DRAFT';
 };
 
 type Tab='dashboard'|'products'|'analytics'|'integration';
@@ -233,10 +236,11 @@ function PartnerApp({authUserId}:{authUserId:string}){
 
   // The installation snippet is generated from products owned by the signed-in partner.
   const [sdkSelectedCode,setSdkSelectedCode]=useState('');
+  const sdkEligibleProducts=products.filter(item=>item.catalogStatus==='READY'&&item.sizes.length>0);
   const selectedSdkProductCode=
-    products.some(item=>item.code===sdkSelectedCode)
+    sdkEligibleProducts.some(item=>item.code===sdkSelectedCode)
       ?sdkSelectedCode
-      :(products[0]?.code||'');
+      :(sdkEligibleProducts[0]?.code||'');
   const sdkInstallSnippet=selectedSdkProductCode&&shopId
     ?'<div data-fit-id-product-code="'+selectedSdkProductCode+
       '" data-fit-id-shop-id="'+shopId+'"></div>\n'+
@@ -356,7 +360,7 @@ function PartnerApp({authUserId}:{authUserId:string}){
     const {data,error}=await db
       .from('products')
       .select(
-        'id,code,name,material,stretch,major_category,sub_category,product_sizes(size_label,waist,hip,thigh,rise,length,measurements,measurement_semantics,measurement_schema_version)'
+        'id,code,name,material,stretch,major_category,sub_category,merchant_product_id,catalog_status,product_sizes(size_label,waist,hip,thigh,rise,length,measurements,measurement_semantics,measurement_schema_version)'
       )
       .eq('shop_id',targetShopId)
       .order('created_at',{ascending:false});
@@ -386,6 +390,8 @@ function PartnerApp({authUserId}:{authUserId:string}){
         name:p.name,
         material:p.material??'',
         stretch:p.stretch??'',
+        catalogStatus:p.catalog_status==='DRAFT'?'DRAFT':'READY',
+        merchantProductId:p.merchant_product_id??'',
         majorCategory:major,
         subCategory:sub,
         sizes:(p.product_sizes??[]).map((row:any)=>{
@@ -991,6 +997,9 @@ function PartnerApp({authUserId}:{authUserId:string}){
                           <strong>
                             {p.name}
                           </strong>
+                          {p.catalogStatus==='DRAFT'&&(
+                            <span style={{color:'#B77918',fontSize:11,fontWeight:700}}>실측 미등록 · 초안</span>
+                          )}
 
                           <span>
                             {
@@ -1105,6 +1114,12 @@ function PartnerApp({authUserId}:{authUserId:string}){
               </div>
 
             </section>
+
+            <PartnerCatalogImport
+              supabase={supabase}
+              shopId={shopId}
+              onDone={()=>loadProducts(shopId)}
+            />
 
             <section className="formGrid">
 
@@ -1774,6 +1789,11 @@ function PartnerApp({authUserId}:{authUserId:string}){
 
             </section>
 
+            <p style={{padding:14,background:"#e9f5ee",borderRadius:12,marginBottom:18}}>
+              기존 상품은 <button type="button" onClick={()=>setTab("products")}
+              style={{border:0,background:"transparent",textDecoration:"underline",color:"#12613d",fontWeight:700,cursor:"pointer"}}>상품 관리 → CSV 일괄 등록</button>에서 가져올 수 있습니다.
+            </p>
+
             <section className="integrationHero">
 
               <div className="integrationSteps">
@@ -1887,7 +1907,7 @@ href={selectedSdkProductCode ? 'https://fit-id-consumer-mtvz.vercel.app/?product
                 상품별 FIT ID 코드를 선택한 뒤 복사하세요. 실제 운영 전에 쇼핑몰 관리자와 테스트 환경에서 검증해야 합니다.
               </p>
 
-              {products.length>0&&shopId?(
+              {sdkEligibleProducts.length>0&&shopId?(
                 <>
                   <label htmlFor="sdk-product-selector" style={{display:'block',fontWeight:700,marginBottom:8}}>
                     설치할 등록 상품 선택
@@ -1902,7 +1922,7 @@ href={selectedSdkProductCode ? 'https://fit-id-consumer-mtvz.vercel.app/?product
                       background:'white',color:'#10251c',marginBottom:14
                     }}
                   >
-                    {products.map(product=>(
+                    {sdkEligibleProducts.map(product=>(
                       <option key={product.id} value={product.code}>
                         {product.name} · {product.code}
                       </option>
