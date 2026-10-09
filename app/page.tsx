@@ -744,6 +744,8 @@ function PartnerApp({authUserId}:{authUserId:string}){
       const p:Product={
         id:productId,
         code,
+        catalogStatus:'READY',
+        merchantProductId:'',
         name:name.trim(),
         material:material.trim(),
         stretch,
