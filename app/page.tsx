@@ -239,7 +239,7 @@ function PartnerApp({authUserId}:{authUserId:string}){
       :(products[0]?.code||'');
   const sdkInstallSnippet=selectedSdkProductCode&&shopId
     ?'<div data-fit-id-product-code="'+selectedSdkProductCode+
-      '" data-fit-id-shop-id="'+shopId+'"></div>\\n'+
+      '" data-fit-id-shop-id="'+shopId+'"></div>\n'+
       '<script defer src="https://fit-id-demo-malls.vercel.app/sdk/v1/fit-id.js"></script>'
     :'';
 
