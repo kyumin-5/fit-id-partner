@@ -231,6 +231,18 @@ function PartnerApp({authUserId}:{authUserId:string}){
   const [editingProductId,setEditingProductId]=
     useState<string|null>(null);
 
+  // The installation snippet is generated from products owned by the signed-in partner.
+  const [sdkSelectedCode,setSdkSelectedCode]=useState('');
+  const selectedSdkProductCode=
+    products.some(item=>item.code===sdkSelectedCode)
+      ?sdkSelectedCode
+      :(products[0]?.code||'');
+  const sdkInstallSnippet=selectedSdkProductCode&&shopId
+    ?'<div data-fit-id-product-code="'+selectedSdkProductCode+
+      '" data-fit-id-shop-id="'+shopId+'"></div>\\n'+
+      '<script defer src="https://fit-id-demo-malls.vercel.app/sdk/v1/fit-id.js"></script>'
+    :'';
+
   useEffect(()=>{
     void initPartner();
   },[authUserId]);
@@ -1834,7 +1846,9 @@ function PartnerApp({authUserId}:{authUserId:string}){
 
                     <a
   className="fitButton"
-href="https://fit-id-consumer-mtvz.vercel.app/?productCode=FIT-731675">
+href={selectedSdkProductCode ? 'https://fit-id-consumer-mtvz.vercel.app/?productCode='+encodeURIComponent(selectedSdkProductCode) : '#'}
+  target="_blank"
+  rel="noopener noreferrer">
   <span className="fitButtonLogo">
     FIT ID
   </span>
@@ -1865,6 +1879,73 @@ href="https://fit-id-consumer-mtvz.vercel.app/?productCode=FIT-731675">
 
             </section>
 
+            <section className="panel" style={{marginTop:22,padding:24}}>
+              <p className="sectionLabel">PARTNER SDK / POC V1</p>
+              <h3 style={{marginTop:8}}>실제 쇼핑몰에 FIT ID 버튼 설치</h3>
+              <p style={{marginBottom:16}}>
+                아래 코드를 테스트 상품의 상세 페이지 HTML에 넣으면 FIT ID 버튼이 생성됩니다.
+                상품별 FIT ID 코드를 선택한 뒤 복사하세요. 실제 운영 전에 쇼핑몰 관리자와 테스트 환경에서 검증해야 합니다.
+              </p>
+
+              {products.length>0&&shopId?(
+                <>
+                  <label htmlFor="sdk-product-selector" style={{display:'block',fontWeight:700,marginBottom:8}}>
+                    설치할 등록 상품 선택
+                  </label>
+                  <select
+                    id="sdk-product-selector"
+                    value={selectedSdkProductCode}
+                    onChange={event=>setSdkSelectedCode(event.target.value)}
+                    style={{
+                      width:'100%',maxWidth:600,padding:'12px',
+                      borderRadius:10,border:'1px solid #cddbd2',
+                      background:'white',color:'#10251c',marginBottom:14
+                    }}
+                  >
+                    {products.map(product=>(
+                      <option key={product.id} value={product.code}>
+                        {product.name} · {product.code}
+                      </option>
+                    ))}
+                  </select>
+                  <pre style={{
+                    whiteSpace:'pre-wrap',wordBreak:'break-all',padding:18,
+                    background:'#0b2419',color:'#b3f6d4',borderRadius:12,
+                    lineHeight:1.7,fontSize:12
+                  }}><code>{sdkInstallSnippet}</code></pre>
+                  <button
+                    type="button"
+                    className="primaryBtn"
+                    style={{marginTop:12}}
+                    onClick={()=>{
+                      if(typeof navigator!=='undefined'&&navigator.clipboard?.writeText){
+                        void navigator.clipboard.writeText(sdkInstallSnippet)
+                          .then(()=>setStatus('선택한 상품의 SDK 설치 코드를 복사했습니다.'))
+                          .catch(()=>setStatus('클립보드 복사 실패: 설치 코드를 직접 선택해 복사해주세요.'));
+                      }else{
+                        setStatus('브라우저 클립보드 권한이 없어 코드를 직접 선택해야 합니다.');
+                      }
+                    }}
+                  >
+                    설치 코드 복사
+                  </button>
+                  <p style={{marginTop:12,fontSize:12}}>
+                    <a href="https://fit-id-demo-malls.vercel.app/sdk-demo.html"
+                       target="_blank" rel="noopener noreferrer">
+                      SDK 독립 테스트 페이지 열기 ↗
+                    </a>
+                  </p>
+                </>
+              ):(
+                <p>상품을 먼저 등록하면 상품별 SDK 설치 코드가 자동 생성됩니다.</p>
+              )}
+
+              <p style={{marginTop:14,fontSize:12}}>
+                PoC 단계 기능입니다. 제휴 상품 실사 이미지 및 가상피팅 검증은 별도 준비가 필요합니다.
+                고객 결제 화면과 개인정보를 수집하지 않으며, 실제 쇼핑몰 설치 시 도메인·로그인·모바일 호환성을 확인합니다.
+              </p>
+            </section>
+
             <section className="integrationCards">
 
               <div className="panel">
@@ -1881,6 +1962,7 @@ href="https://fit-id-consumer-mtvz.vercel.app/?productCode=FIT-731675">
                   <li>상품 FIT DATA Supabase 저장</li>
                   <li>상품별 내부 Product Code 발급</li>
                   <li>Consumer FIT CHECK 연결용 데이터 구조</li>
+                  <li>외부 쇼핑몰 임베드 SDK v1 테스트 버전</li>
                 </ul>
 
               </div>
@@ -1897,7 +1979,7 @@ href="https://fit-id-consumer-mtvz.vercel.app/?productCode=FIT-731675">
 
                 <ul className="checkList planned">
                   <li>쇼핑몰 상품 ID 자동 매핑</li>
-                  <li>FIT ID 버튼 SDK / API</li>
+                  <li>쇼핑몰 플랫폼별 공식 설치 어댑터 · API</li>
                   <li>상품 데이터 CSV·API 동기화</li>
                   <li>추천·착용 데이터 Partner Analytics 집계</li>
                 </ul>
