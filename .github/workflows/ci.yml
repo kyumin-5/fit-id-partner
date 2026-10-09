@@ -13,5 +13,6 @@ jobs:
           node-version: 22
       - run: npm install
       - run: node --experimental-strip-types scripts/catalog-csv-smoke.mjs
+      - run: node --experimental-strip-types scripts/product-photo-smoke.mjs
       - run: npx tsc --noEmit
       - run: npx next build
