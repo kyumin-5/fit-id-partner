@@ -1,5 +1,6 @@
 'use client';
 import {useEffect,useState} from 'react';
+import {validMerchantProductId} from '../lib/sdkInstall';
 
 type Props={
   db:any;
@@ -9,9 +10,6 @@ type Props={
   currentMerchantId:string;
   onSaved:()=>Promise<void>;
 };
-export function validMerchantProductId(value:string){
-  return value.length>0&&value.length<=120&&!/[\u0000-\u001f\u007f]/.test(value);
-}
 export default function PartnerMerchantMapping({
   db,shopId,productId,productName,currentMerchantId,onSaved
 }:Props){
