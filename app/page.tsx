@@ -7,6 +7,7 @@ import PocDashboard from './PocDashboard';
 import PartnerCatalogImport from './components/PartnerCatalogImport';
 import PartnerSizeChartReader from './components/PartnerSizeChartReader';
 import PartnerProductPhoto from './components/PartnerProductPhoto';
+import PartnerPocPreflight from './components/PartnerPocPreflight';
 import {inspectProductImage,publicPartnerImageUrl,uploadPartnerProductImage} from './lib/productImage';
 
 type MajorCategory='TOP'|'BOTTOM'|'OUTER'|'DRESS';
@@ -1925,6 +1926,16 @@ function PartnerApp({authUserId}:{authUserId:string}){
               기존 상품은 <button type="button" onClick={()=>setTab("products")}
               style={{border:0,background:"transparent",textDecoration:"underline",color:"#12613d",fontWeight:700,cursor:"pointer"}}>상품 관리 → CSV 일괄 등록</button>에서 가져올 수 있습니다.
             </p>
+
+            <PartnerPocPreflight
+              db={supabase}
+              shopId={shopId}
+              onManageProduct={code=>{
+                setTab('products');
+                const selected=products.find(item=>item.code===code);
+                if(selected)startEdit(selected);
+              }}
+            />
 
             <section className="integrationHero">
 
