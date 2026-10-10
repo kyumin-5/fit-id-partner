@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {buildSdkInstallSnippet} from '../app/lib/sdkInstall.ts';
+import {validMerchantProductId} from '../app/lib/sdkInstall.ts';
+const shop='d1000000-0000-4000-8000-000000000001';
+const mapped=buildSdkInstallSnippet(shop,{code:'FIT-910101',merchantProductId:'SHOP-123'});
+assert.match(mapped,/data-fit-id-merchant-product-id="SHOP-123"/);
+assert.doesNotMatch(mapped,/data-fit-id-product-code=/);
+assert.match(mapped,/fit-id\.js/);
+const unmapped=buildSdkInstallSnippet(shop,{code:'FIT-910101',merchantProductId:''});
+assert.match(unmapped,/data-fit-id-product-code="FIT-910101"/);
+assert.equal(buildSdkInstallSnippet('bad',{code:'FIT-910101',merchantProductId:''}),'');
+const safe=buildSdkInstallSnippet(shop,{code:'FIT-910101',merchantProductId:'123" onmouseover="alert(1)'});
+assert.match(safe,/&quot;/);
+assert.doesNotMatch(safe,/onmouseover="/);
+assert.equal(validMerchantProductId('SKU-001'),true);
+assert.equal(validMerchantProductId(''),false);
+assert.equal(validMerchantProductId('multi\nline'),false);
+console.log('PASS SDK snippets: merchant mapping, legacy fallback, escaping, invalid IDs');
