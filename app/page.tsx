@@ -8,6 +8,8 @@ import PartnerCatalogImport from './components/PartnerCatalogImport';
 import PartnerSizeChartReader from './components/PartnerSizeChartReader';
 import PartnerProductPhoto from './components/PartnerProductPhoto';
 import PartnerPocPreflight from './components/PartnerPocPreflight';
+import PartnerMerchantMapping from './components/PartnerMerchantMapping';
+import {buildSdkInstallSnippet} from './lib/sdkInstall';
 import {inspectProductImage,publicPartnerImageUrl,uploadPartnerProductImage} from './lib/productImage';
 
 type MajorCategory='TOP'|'BOTTOM'|'OUTER'|'DRESS';
@@ -257,11 +259,8 @@ function PartnerApp({authUserId}:{authUserId:string}){
     sdkEligibleProducts.some(item=>item.code===sdkSelectedCode)
       ?sdkSelectedCode
       :(sdkEligibleProducts[0]?.code||'');
-  const sdkInstallSnippet=selectedSdkProductCode&&shopId
-    ?'<div data-fit-id-product-code="'+selectedSdkProductCode+
-      '" data-fit-id-shop-id="'+shopId+'"></div>\n'+
-      '<script defer src="https://fit-id-demo-malls.vercel.app/sdk/v1/fit-id.js"></script>'
-    :'';
+  const selectedSdkProduct=sdkEligibleProducts.find(item=>item.code===selectedSdkProductCode)||null;
+  const sdkInstallSnippet=buildSdkInstallSnippet(shopId,selectedSdkProduct);
 
   useEffect(()=>{
     void initPartner();
@@ -1678,6 +1677,15 @@ function PartnerApp({authUserId}:{authUserId:string}){
                           <p style={{fontSize:12,color:'#9d7217'}}>실측 입력 전에는 FIT CHECK를 사용할 수 없습니다.</p>
                         )}
 
+                        <PartnerMerchantMapping
+                          db={supabase}
+                          shopId={shopId}
+                          productId={p.id}
+                          productName={p.name}
+                          currentMerchantId={p.merchantProductId}
+                          onSaved={()=>loadProducts(shopId)}
+                        />
+
                         <PartnerProductPhoto
                           db={supabase}
                           authUserId={authUserId}
@@ -2047,7 +2055,8 @@ href={selectedSdkProductCode ? 'https://fit-id-consumer-mtvz.vercel.app/?product
               <h3 style={{marginTop:8}}>실제 쇼핑몰에 FIT ID 버튼 설치</h3>
               <p style={{marginBottom:16}}>
                 아래 코드를 테스트 상품의 상세 페이지 HTML에 넣으면 FIT ID 버튼이 생성됩니다.
-                상품별 FIT ID 코드를 선택한 뒤 복사하세요. 실제 운영 전에 쇼핑몰 관리자와 테스트 환경에서 검증해야 합니다.
+                상품별 쇼핑몰 상품번호를 연결한 다음 설치 코드를 복사하세요. 연결된 상품은 쇼핑몰 상품번호로 FIT ID 데이터를 자동 조회합니다.
+                아직 번호를 연결하지 않았다면 기존 FIT ID 코드 방식으로 작동합니다.
               </p>
 
               {sdkEligibleProducts.length>0&&shopId?(
@@ -2071,6 +2080,11 @@ href={selectedSdkProductCode ? 'https://fit-id-consumer-mtvz.vercel.app/?product
                       </option>
                     ))}
                   </select>
+                  <p style={{fontSize:12,margin:'0 0 12px',color:'#486859'}}>
+                    {selectedSdkProduct?.merchantProductId
+                      ? '✓ 쇼핑몰 상품번호 '+selectedSdkProduct.merchantProductId+' 연결됨 — 설치 코드는 쇼핑몰 상품번호로 상품을 조회합니다.'
+                      : '이 상품은 쇼핑몰 상품번호가 없습니다. 상품 관리에서 번호를 연결하면 자동 연동 코드로 전환됩니다.'}
+                  </p>
                   <pre style={{
                     whiteSpace:'pre-wrap',wordBreak:'break-all',padding:18,
                     background:'#0b2419',color:'#b3f6d4',borderRadius:12,
