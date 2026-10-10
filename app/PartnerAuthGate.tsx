@@ -9,6 +9,7 @@ import {
 import {
   createClient
 } from '@supabase/supabase-js';
+import PartnerLanding from './PartnerLanding';
 
 const supabaseUrl=
   process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -29,6 +30,7 @@ export default function PartnerAuthGate({
 }){
   const [userId,setUserId]=useState('');
   const [loading,setLoading]=useState(true);
+  const [showAuthForm,setShowAuthForm]=useState(false);
 
   const [email,setEmail]=useState('');
   const [password,setPassword]=useState('');
@@ -146,6 +148,7 @@ export default function PartnerAuthGate({
   async function logout(){
     if(!supabase)return;
     await supabase.auth.signOut();
+    setShowAuthForm(false);
   }
 
   if(loading){
@@ -161,6 +164,13 @@ export default function PartnerAuthGate({
         FIT ID Partner loading...
       </div>
     );
+  }
+
+  if(!userId&&!showAuthForm){
+    return <PartnerLanding
+      onLogin={()=>{setMode('login');setMessage('');setShowAuthForm(true);}}
+      onSignup={()=>{setMode('signup');setMessage('');setShowAuthForm(true);}}
+    />;
   }
 
   if(!userId){
@@ -183,6 +193,11 @@ export default function PartnerAuthGate({
           padding:30,
           boxShadow:'0 20px 50px rgba(17,24,39,.08)'
         }}>
+          <button
+            type="button"
+            onClick={()=>{setShowAuthForm(false);setMessage('');}}
+            style={{border:0,background:'transparent',color:'#2E7050',fontWeight:700,padding:'0 0 18px',cursor:'pointer'}}
+          >← 파트너 홈으로 돌아가기</button>
           <div style={{
             width:48,
             height:48,
