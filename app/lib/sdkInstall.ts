@@ -2,6 +2,9 @@
  * HTML install markup for the Partner-side PoC.
  * Merchant IDs are converted into safe HTML attribute text before copying.
  */
+export function validMerchantProductId(value:string){
+  return value.length>0&&value.length<=120&&!/[\u0000-\u001f\u007f]/.test(value);
+}
 export type InstallProduct={code:string;merchantProductId:string};
 const SDK='https://fit-id-demo-malls.vercel.app/sdk/v1/fit-id.js';
 const escapeAttr=(raw:string)=>raw.replace(/&/g,'&amp;').replace(/"/g,'&quot;')
