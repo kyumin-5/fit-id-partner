@@ -1650,6 +1650,25 @@ function PartnerApp({authUserId}:{authUserId:string}){
 
                         </div>
 
+                        <div className="productDataChecklist" aria-label={p.name+' 상품 등록 정보 점검'} style={{display:'flex',flexWrap:'wrap',gap:7,margin:'12px 0 14px'}}>
+                          {[
+                            {label:'실측',ok:p.catalogStatus==='READY'&&p.sizes.length>0},
+                            {label:'대표사진',ok:Boolean(p.imagePath)},
+                            {label:'쇼핑몰 상품번호',ok:Boolean(p.merchantProductId)}
+                          ].map(item=>(
+                            <span key={item.label} style={{
+                              display:'inline-flex',alignItems:'center',gap:4,
+                              border:'1px solid '+(item.ok?'#c6ead2':'#efdfb5'),
+                              background:item.ok?'#eefaf2':'#fff8e8',
+                              color:item.ok?'#17613a':'#836016',
+                              padding:'6px 9px',borderRadius:999,
+                              fontSize:11,fontWeight:700
+                            }}>
+                              <span aria-hidden="true">{item.ok?'✓':'!'}</span>
+                              {item.label} {item.ok?'등록':'확인 필요'}
+                            </span>
+                          ))}
+                        </div>
                         <div className="codeLine">
 
                           <span>
