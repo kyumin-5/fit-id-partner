@@ -185,34 +185,8 @@ const makeSize=(
   measurements:{...values}
 });
 
-const seed:Size[]=[
-  makeSize('S',{
-    WAIST_WIDTH:'35',
-    HIP_WIDTH:'47',
-    THIGH_WIDTH:'28',
-    RISE:'29',
-    OUTSEAM_LENGTH:'100',
-    HEM_WIDTH:'20'
-  }),
-  makeSize('M',{
-    WAIST_WIDTH:'37',
-    HIP_WIDTH:'49',
-    THIGH_WIDTH:'29',
-    RISE:'30',
-    OUTSEAM_LENGTH:'102',
-    HEM_WIDTH:'21'
-  }),
-  makeSize('L',{
-    WAIST_WIDTH:'39',
-    HIP_WIDTH:'51',
-    THIGH_WIDTH:'30',
-    RISE:'31',
-    OUTSEAM_LENGTH:'104',
-    HEM_WIDTH:'22'
-  })
-];
-
 const blank=():Size=>makeSize('');
+const commonSizeLabels=['XS','S','M','L','XL','2XL','3XL','4XL','FREE'] as const;
 
 const supabaseUrl=process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey=
@@ -233,7 +207,7 @@ function PartnerApp({authUserId}:{authUserId:string}){
   const [stretch,setStretch]=useState('조금');
   const [majorCategory,setMajorCategory]=useState<MajorCategory>('BOTTOM');
   const [subCategory,setSubCategory]=useState('PANTS');
-  const [sizes,setSizes]=useState<Size[]>(seed);
+  const [sizes,setSizes]=useState<Size[]>([blank()]);
   const [products,setProducts]=useState<Product[]>([]);
   const [latest,setLatest]=useState<Product|null>(null);
   const [saving,setSaving]=useState(false);
@@ -463,6 +437,32 @@ function PartnerApp({authUserId}:{authUserId:string}){
     );
   };
 
+  // These are editable labels, not a hard-coded range.
+  const addSizeLabel=(label:string)=>{
+    const key=label.trim().toUpperCase();
+    setSizes(rows=>{
+      if(rows.some(row=>row.label.trim().toUpperCase()===key))return rows;
+      const unused=rows.findIndex(row=>!row.label.trim()&&
+        Object.values(row.measurements).every(v=>!String(v||'').trim()));
+      if(unused>=0)return rows.map((row,index)=>index===unused?makeSize(key):row);
+      return [...rows,makeSize(key)];
+    });
+  };
+  const addCommonSizes=()=>{
+    setSizes(rows=>{
+      const existing=new Set(rows.map(row=>row.label.trim().toUpperCase()));
+      const base=rows.filter(row=>row.label.trim()||
+        Object.values(row.measurements).some(v=>String(v||'').trim()));
+      const extras=['S','M','L'].filter(label=>!existing.has(label)).map(label=>makeSize(label));
+      return [...base,...extras].length?[...base,...extras]:[blank()];
+    });
+  };
+  const removeSize=(index:number)=>{
+    if(editingProductId&&sizes[index]?.label.trim()&&
+       !window.confirm('이 사이즈를 목록에서 제외할까요? 저장하면 기존 상품의 해당 사이즈도 제외될 수 있습니다.'))return;
+    setSizes(rows=>{const next=rows.filter((_,i)=>i!==index);return next.length?next:[blank()];});
+  };
+
   const changeMeasurement=(
     i:number,
     key:DimensionKey,
@@ -492,10 +492,7 @@ function PartnerApp({authUserId}:{authUserId:string}){
     setStretch('조금');
     setMajorCategory('BOTTOM');
     setSubCategory('PANTS');
-    setSizes(seed.map(row=>({
-      label:row.label,
-      measurements:{...row.measurements}
-    })));
+    setSizes([blank()]);
   };
 
   const changeMajorCategory=(major:MajorCategory)=>{
@@ -1386,13 +1383,40 @@ function PartnerApp({authUserId}:{authUserId:string}){
 
                   <button
                     className="secondaryBtn"
-                    onClick={()=>setSizes([...sizes,blank()])}
+                    onClick={()=>setSizes(rows=>[...rows,blank()])}
                   >
-                    + 사이즈 추가
+                    + 직접 입력
                   </button>
 
                 </div>
 
+                <div style={{margin:'12px 0 15px',padding:14,border:'1px solid #DCEAE2',borderRadius:16,background:'#F7FBF8'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+                    <div>
+                      <strong style={{display:'block',fontSize:13,color:'#17382A'}}>사이즈 자유 등록</strong>
+                      <span style={{display:'block',fontSize:12,color:'#647A6D',marginTop:3}}>
+                        등록한 사이즈 전체가 FIT CHECK 비교 대상이에요. 각 사이즈의 실제 실측도 입력해 주세요.
+                      </span>
+                    </div>
+                    <button type="button" className="secondaryBtn" onClick={addCommonSizes}>S / M / L 한번에 추가</button>
+                  </div>
+                  <div style={{display:'flex',flexWrap:'wrap',gap:7,marginTop:12}}>
+                    {commonSizeLabels.map(label=>{
+                      const added=sizes.some(row=>row.label.trim().toUpperCase()===label);
+                      return <button key={label} type="button" disabled={added}
+                        onClick={()=>addSizeLabel(label)} aria-label={label+' 사이즈 추가'}
+                        style={{minWidth:46,minHeight:37,padding:'7px 11px',borderRadius:10,
+                          border:'1px solid '+(added?'#BDE0C9':'#DCEAE2'),
+                          background:added?'#EAF8EE':'#FFF',color:added?'#448564':'#203E30',
+                          fontWeight:700,cursor:added?'default':'pointer',opacity:added?0.65:1}}>
+                        {label}{added?' ✓':''}
+                      </button>;
+                    })}
+                  </div>
+                  <p style={{fontSize:12,color:'#647A6D',margin:'10px 0 0'}}>
+                    숫자 사이즈도 등록 가능: 26 · 28 · 30 · 32 · 44 · 55 · 66 · 90 · 95 · 100 · W32
+                  </p>
+                </div>
                 <PartnerSizeChartReader
                   db={supabase}
                   shopId={shopId}
@@ -1444,15 +1468,17 @@ function PartnerApp({authUserId}:{authUserId:string}){
                         <tr key={i}>
 
                           <td>
-                            <input
-                              value={row.label}
-                              onChange={e=>
-                                changeLabel(
-                                  i,
-                                  e.target.value
-                                )
-                              }
-                            />
+                            <div style={{display:'flex',gap:6,alignItems:'center',minWidth:130}}>
+                              <input aria-label={'사이즈 '+(i+1)+' 이름'}
+                                value={row.label} placeholder="XS / 28 / 100"
+                                onChange={e=>changeLabel(i,e.target.value)}
+                                style={{minWidth:78,width:115}}/>
+                              <button type="button" title={row.label+' 행 제거'}
+                                aria-label={row.label+' 사이즈 행 삭제'}
+                                onClick={()=>removeSize(i)}
+                                style={{border:'1px solid #EACEC9',background:'#FFF9F7',
+                                  borderRadius:9,color:'#9C5046',minWidth:35,height:35,cursor:'pointer'}}>×</button>
+                            </div>
                           </td>
 
                           {
@@ -1494,8 +1520,8 @@ function PartnerApp({authUserId}:{authUserId:string}){
                 </div>
 
                 <p className="helperText">
-                  단위 cm · 현재 MVP에서는 사업자가 직접 확인한
-                  실측값을 입력합니다.
+                  등록 사이즈 {sizes.filter(row=>row.label.trim()).length}개 · 단위 cm.
+                  사업자가 확인한 실측값이 있어야 FIT CHECK에서 비교합니다.
                 </p>
 
                 <button
