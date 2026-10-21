@@ -205,7 +205,7 @@ function PartnerApp({authUserId}:{authUserId:string}){
   const [shopId,setShopId]=useState('');
   const [name,setName]=useState('');
   const [material,setMaterial]=useState('');
-  const [stretch,setStretch]=useState('조금');
+  const [stretch,setStretch]=useState('');
   const [majorCategory,setMajorCategory]=useState<MajorCategory>('BOTTOM');
   const [subCategory,setSubCategory]=useState('PANTS');
   const [sizes,setSizes]=useState<Size[]>([blank()]);
@@ -490,7 +490,7 @@ function PartnerApp({authUserId}:{authUserId:string}){
     setEditingProductId(null);
     setName('');
     setMaterial('');
-    setStretch('조금');
+    setStretch('');
     setMajorCategory('BOTTOM');
     setSubCategory('PANTS');
     setSizes([blank()]);
@@ -530,7 +530,7 @@ function PartnerApp({authUserId}:{authUserId:string}){
     setEditingProductId(p.id);
     setName(p.name);
     setMaterial(p.material);
-    setStretch(p.stretch||'조금');
+    setStretch(p.stretch||'');
     setMajorCategory(p.majorCategory);
     setSubCategory(p.subCategory);
     setSizes(
@@ -600,6 +600,11 @@ function PartnerApp({authUserId}:{authUserId:string}){
 
     if(!name.trim()){
       alert('상품명을 입력해주세요.');
+      return;
+    }
+
+    if(!['없음','조금','많음'].includes(stretch)){
+      alert('소재 신축성을 확인해 선택해주세요. 모르면 판매자 제공 정보를 확인한 뒤 등록해주세요.');
       return;
     }
 
@@ -1318,6 +1323,7 @@ function PartnerApp({authUserId}:{authUserId:string}){
                     value={stretch}
                     onChange={e=>setStretch(e.target.value)}
                   >
+                    <option value="" disabled>신축성 선택 (필수)</option>
                     <option>없음</option>
                     <option>조금</option>
                     <option>많음</option>
