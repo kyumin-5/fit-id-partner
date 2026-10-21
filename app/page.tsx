@@ -9,6 +9,8 @@ import PartnerSizeChartReader from './components/PartnerSizeChartReader';
 import PartnerProductPhoto from './components/PartnerProductPhoto';
 import PartnerPocPreflight from './components/PartnerPocPreflight';
 import PartnerMerchantMapping from './components/PartnerMerchantMapping';
+import PartnerShopSwitcher from './components/PartnerShopSwitcher';
+import PartnerGrowthAnalytics from './components/PartnerGrowthAnalytics';
 import {buildSdkInstallSnippet} from './lib/sdkInstall';
 import {inspectProductImage,publicPartnerImageUrl,uploadPartnerProductImage} from './lib/productImage';
 
@@ -203,6 +205,10 @@ function PartnerApp({authUserId}:{authUserId:string}){
   const [tab,setTab]=useState<Tab>('dashboard');
   const [shop,setShop]=useState('Partner Workspace');
   const [shopId,setShopId]=useState('');
+  const [sdkButtonColor,setSdkButtonColor]=useState('#092e24');
+  const [sdkTextColor,setSdkTextColor]=useState('#ffffff');
+  const [sdkAccentColor,setSdkAccentColor]=useState('#81eeb6');
+  const [sdkRadius,setSdkRadius]=useState(12);
   const [name,setName]=useState('');
   const [material,setMaterial]=useState('');
   const [stretch,setStretch]=useState('');
@@ -235,7 +241,9 @@ function PartnerApp({authUserId}:{authUserId:string}){
       ?sdkSelectedCode
       :(sdkEligibleProducts[0]?.code||'');
   const selectedSdkProduct=sdkEligibleProducts.find(item=>item.code===selectedSdkProductCode)||null;
-  const sdkInstallSnippet=buildSdkInstallSnippet(shopId,selectedSdkProduct);
+  const sdkInstallSnippet=buildSdkInstallSnippet(shopId,selectedSdkProduct,{
+    buttonColor:sdkButtonColor,textColor:sdkTextColor,accentColor:sdkAccentColor,radius:sdkRadius
+  });
 
   useEffect(()=>{
     void initPartner();
@@ -332,6 +340,20 @@ function PartnerApp({authUserId}:{authUserId:string}){
         (e?.message||String(e))
       );
     }
+  }
+
+  async function switchShop(next:{id:string;name:string}){
+    // Only shops fetched with the signed-in owner's ID appear in the selector.
+    // The database RLS policies independently enforce product ownership.
+    if(next.id===shopId)return;
+    resetProductForm();
+    setSdkSelectedCode('');
+    setLatest(null);
+    setShopId(next.id);
+    setShop(next.name);
+    setTab('dashboard');
+    setProducts([]);
+    await loadProducts(next.id);
   }
 
   async function loadProducts(targetShopId=shopId){
@@ -1014,6 +1036,8 @@ function PartnerApp({authUserId}:{authUserId:string}){
 
             </section>
 
+            <PartnerShopSwitcher db={supabase} authUserId={authUserId} shopId={shopId}
+              onSwitch={switchShop}/>
             <PocDashboard shopId={shopId}/>
 
             <section className="dashboardGrid">
@@ -1808,6 +1832,7 @@ function PartnerApp({authUserId}:{authUserId:string}){
 
         {tab==='analytics'&&(
           <>
+            <PartnerGrowthAnalytics db={supabase} shopId={shopId} shopName={shop}/>
 
             <section className="sectionIntro">
 
@@ -2155,6 +2180,27 @@ href={selectedSdkProductCode ? 'https://fit-id-consumer-mtvz.vercel.app/?product
                       ? '✓ 쇼핑몰 상품번호 '+selectedSdkProduct.merchantProductId+' 연결됨 — 설치 코드는 쇼핑몰 상품번호로 상품을 조회합니다.'
                       : '이 상품은 쇼핑몰 상품번호가 없습니다. 상품 관리에서 번호를 연결하면 자동 연동 코드로 전환됩니다.'}
                   </p>
+                  <div style={{padding:16,marginBottom:16,background:'#f6faf7',border:'1px solid #dae9df',borderRadius:12}}>
+                    <strong style={{display:'block',fontSize:14,marginBottom:10}}>FIT ID 버튼 디자인 설정</strong>
+                    <p style={{fontSize:12,margin:'0 0 12px',color:'#54725e'}}>
+                      색상과 모서리 디자인을 변경하면 아래 복사 코드에 자동 반영됩니다. 기존 연동 기능은 유지됩니다.
+                    </p>
+                    <div style={{display:'flex',gap:14,flexWrap:'wrap'}}>
+                      <label style={{fontSize:12}}>배경색 <input aria-label="버튼 배경색" type="color" value={sdkButtonColor} onChange={e=>setSdkButtonColor(e.target.value)}/></label>
+                      <label style={{fontSize:12}}>글자색 <input aria-label="버튼 글자색" type="color" value={sdkTextColor} onChange={e=>setSdkTextColor(e.target.value)}/></label>
+                      <label style={{fontSize:12}}>로고색 <input aria-label="FIT ID 로고 색상" type="color" value={sdkAccentColor} onChange={e=>setSdkAccentColor(e.target.value)}/></label>
+                      <label style={{fontSize:12}}>모서리
+                        <select aria-label="버튼 모서리" value={sdkRadius} onChange={e=>setSdkRadius(Number(e.target.value))}>
+                          {[0,4,8,12,16,24].map(v=><option key={v} value={v}>{v}px</option>)}
+                        </select>
+                      </label>
+                    </div>
+                    <div style={{marginTop:14}}>
+                      <span style={{display:'inline-flex',alignItems:'center',gap:10,background:sdkButtonColor,color:sdkTextColor,borderRadius:sdkRadius,padding:'13px 18px',fontWeight:700,fontSize:13}}>
+                        <span style={{color:sdkAccentColor}}>FIT ID</span> 내 FIT ID로 사이즈 확인
+                      </span>
+                    </div>
+                  </div>
                   <pre style={{
                     whiteSpace:'pre-wrap',wordBreak:'break-all',padding:18,
                     background:'#0b2419',color:'#b3f6d4',borderRadius:12,
