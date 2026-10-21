@@ -187,6 +187,7 @@ const makeSize=(
 
 const blank=():Size=>makeSize('');
 const commonSizeLabels=['XS','S','M','L','XL','2XL','3XL','4XL','FREE'] as const;
+const commonMaterialLabels=['면','데님','린넨','울','실크','니트','폴리에스테르','나일론','가죽'] as const;
 
 const supabaseUrl=process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey=
@@ -1286,8 +1287,26 @@ function PartnerApp({authUserId}:{authUserId:string}){
                   <input
                     value={material}
                     onChange={e=>setMaterial(e.target.value)}
-                    placeholder="Cotton 98%, Spandex 2%"
+                    placeholder="예) 코튼 98%, 스판 2% / 데님 / 린넨"
                   />
+                  <div style={{display:'flex',flexWrap:'wrap',gap:6,marginTop:9}}>
+                    {commonMaterialLabels.map(label=>
+                      <button key={label} type="button" onClick={()=>setMaterial(label)}
+                        title={'실제 상품 소재가 '+label+'일 때만 선택'}
+                        style={{padding:'6px 10px',borderRadius:9,minHeight:33,
+                          border:'1px solid '+(material===label?'#52B37E':'#DFEAE2'),
+                          color:material===label?'#176A42':'#556E5D',
+                          background:material===label?'#E9F8EE':'#FFFFFF',
+                          fontSize:12,fontWeight:600,cursor:'pointer'}}>
+                        {label}
+                      </button>
+                    )}
+                  </div>
+                  <p style={{fontSize:12,color:'#62786B',margin:'9px 0 0',lineHeight:1.55}}>
+                    실제 상품 라벨과 혼용률을 확인해 입력해 주세요. 소재별 질감·주름 표현에 활용됩니다.
+                    혼방은 소재명을 직접 수정하고, 신축성은 아래에서 별도로 선택해 주세요.
+                    원단 물리 특성을 정확히 계산하는 기능은 아닙니다.
+                  </p>
 
                 </div>
 
