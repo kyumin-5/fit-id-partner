@@ -11,6 +11,7 @@ import PartnerPocPreflight from './components/PartnerPocPreflight';
 import PartnerMerchantMapping from './components/PartnerMerchantMapping';
 import PartnerShopSwitcher from './components/PartnerShopSwitcher';
 import PartnerGrowthAnalytics from './components/PartnerGrowthAnalytics';
+import PartnerROICalculator from './components/PartnerROICalculator';
 import {buildSdkInstallSnippet} from './lib/sdkInstall';
 import {inspectProductImage,publicPartnerImageUrl,uploadPartnerProductImage} from './lib/productImage';
 
@@ -1833,6 +1834,7 @@ function PartnerApp({authUserId}:{authUserId:string}){
         {tab==='analytics'&&(
           <>
             <PartnerGrowthAnalytics db={supabase} shopId={shopId} shopName={shop}/>
+            <PartnerROICalculator/>
 
             <section className="sectionIntro">
 
