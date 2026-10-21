@@ -10,7 +10,9 @@ const SDK='https://fit-id-demo-malls.vercel.app/sdk/v1/fit-id.js';
 const escapeAttr=(raw:string)=>raw.replace(/&/g,'&amp;').replace(/"/g,'&quot;')
   .replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;');
 const validUuid=(v:string)=>/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
-export function buildSdkInstallSnippet(shopId:string,product:InstallProduct|null):string{
+export type ButtonAppearance={buttonColor?:string;textColor?:string;accentColor?:string;radius?:number};
+const safeColor=(value:string|undefined)=>value&&/^#[0-9a-fA-F]{6}$/.test(value)?value:'';
+export function buildSdkInstallSnippet(shopId:string,product:InstallProduct|null,appearance:ButtonAppearance={}):string{
   if(!validUuid(shopId)||!product)return '';
   let attributes='';
   if(product.merchantProductId){
@@ -20,6 +22,14 @@ export function buildSdkInstallSnippet(shopId:string,product:InstallProduct|null
     if(!/^[A-Za-z0-9][A-Za-z0-9_-]{2,63}$/.test(product.code))return '';
     attributes='data-fit-id-product-code="'+escapeAttr(product.code)+'"';
   }
-  return '<div '+attributes+' data-fit-id-shop-id="'+escapeAttr(shopId)+'"></div>\n'+
+  const colorFields=[
+    ['data-fit-id-button-color',safeColor(appearance.buttonColor)],
+    ['data-fit-id-text-color',safeColor(appearance.textColor)],
+    ['data-fit-id-accent-color',safeColor(appearance.accentColor)]
+  ];
+  const theme=colorFields.filter(([,value])=>value).map(([name,value])=>' '+name+'="'+value+'"').join('');
+  const radius=[0,4,8,12,16,24].includes(appearance.radius as number)
+    ?' data-fit-id-radius="'+appearance.radius+'"':'';
+  return '<div '+attributes+' data-fit-id-shop-id="'+escapeAttr(shopId)+'"'+theme+radius+'></div>\n'+
     '<script defer src="'+SDK+'"></script>';
 }
