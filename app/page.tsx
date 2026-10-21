@@ -12,6 +12,7 @@ import PartnerMerchantMapping from './components/PartnerMerchantMapping';
 import PartnerShopSwitcher from './components/PartnerShopSwitcher';
 import PartnerGrowthAnalytics from './components/PartnerGrowthAnalytics';
 import PartnerROICalculator from './components/PartnerROICalculator';
+import PartnerOnboardingGuide from './components/PartnerOnboardingGuide';
 import {buildSdkInstallSnippet} from './lib/sdkInstall';
 import {inspectProductImage,publicPartnerImageUrl,uploadPartnerProductImage} from './lib/productImage';
 
@@ -2031,6 +2032,8 @@ function PartnerApp({authUserId}:{authUserId:string}){
               기존 상품은 <button type="button" onClick={()=>setTab("products")}
               style={{border:0,background:"transparent",textDecoration:"underline",color:"#12613d",fontWeight:700,cursor:"pointer"}}>상품 관리 → CSV 일괄 등록</button>에서 가져올 수 있습니다.
             </p>
+
+            <PartnerOnboardingGuide shopId={shopId} onNavigate={target=>setTab(target)}/>
 
             <PartnerPocPreflight
               db={supabase}
